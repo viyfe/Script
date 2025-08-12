@@ -7,7 +7,7 @@
 hostname = api.miaoxiaole.com
 
 [Script]
-checkSearchEntrance = type=http-response,pattern=^https:\/\/api\.miaoxiaole\.com\/book\/user\/checkSearchEntrance$,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/yourusername/scripts/main/checkSearchEntrance.js,timeout=10
+checkSearchEntrance = type=http-response,pattern=^https:\/\/api\.miaoxiaole\.com\/book\/user\/checkSearchEntrance$,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/checkSearchEntrance.js,timeout=10
 
 [Script-Update]
-checkSearchEntrance = https://raw.githubusercontent.com/yourusername/scripts/main/checkSearchEntrance.js
+checkSearchEntrance = https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/checkSearchEntrance.js
