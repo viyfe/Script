@@ -1,0 +1,15 @@
+#!name=MugunTools VIP Unlock
+#!desc=解锁维修助手VIP功能。修改 document_v2, user/index, 和 thirdLogin API 的响应。
+
+[MITM]
+hostname = %APPEND% muguntools.com
+
+[Script]
+# 解锁文档查看权限 (document_v2)
+MugunTools_Doc = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/document_v2,requires-body=1,max-size=0,script-path=MugunTools.js,argument=doc
+
+# 修改用户信息 (user/index)
+MugunTools_User = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/user\/index,requires-body=1,max-size=0,script-path=MugunTools.js,argument=user
+
+# 修改登录信息 (thirdLogin)
+MugunTools_Login = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/login\/thirdLogin,requires-body=1,max-size=0,script-path=MugunTools.js,argument=login
