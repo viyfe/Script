@@ -6,10 +6,10 @@ hostname = %APPEND% muguntools.com
 
 [Script]
 # 解锁文档查看权限 (document_v2)
-MugunTools_Doc = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/document_v2,requires-body=1,max-size=0,script-path=MugunTools.js,argument=doc
+MugunTools_Doc = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/document_v2,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/MugunTools.js,argument=doc
 
 # 修改用户信息 (user/index)
-MugunTools_User = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/user\/index,requires-body=1,max-size=0,script-path=MugunTools.js,argument=user
+MugunTools_User = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/user\/index,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/MugunTools.js,argument=user
 
 # 修改登录信息 (thirdLogin)
-MugunTools_Login = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/login\/thirdLogin,requires-body=1,max-size=0,script-path=MugunTools.js,argument=login
+MugunTools_Login = type=http-response,pattern=^https?:\/\/muguntools\.com\/api\/login\/thirdLogin,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/MugunTools.js,argument=login
