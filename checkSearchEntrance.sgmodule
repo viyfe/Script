@@ -4,7 +4,7 @@
 #!author=iy v
 
 [MITM]
-hostname = api.miaoxiaole.com
+hostname = %APPEND% api.miaoxiaole.com
 
 [Script]
 checkSearchEntrance = type=http-response,pattern=^https:\/\/api\.miaoxiaole\.com\/book\/user\/checkSearchEntrance$,requires-body=1,script-path=https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/checkSearchEntrance.js,timeout=10
