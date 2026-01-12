@@ -1,14 +1,12 @@
 # name = Revenuecat & Rc-backup & visionarytech
-# desc = Revenuecat 通杀重定向脚本转换版
+# desc = Revenuecat 通杀重定向
 # author = @langkhach270389 @fly
 
-# 注意：在 QX 远程引用中，不需要 [rewrite_local] 标签
+# 注意：远程引用不需要 [rewrite_local] 标签
 
-# Revenuecat 重定向
-^https:\/\/api\.revenuecat\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://reven.lovebabyforever.workers.dev
-^https:\/\/api\.rc-backup\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://rc-backup.lovebabyforever.workers.dev
-^https:\/\/rc\.visionarytech\.ltd\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://rc.lovebabyforever.workers.dev
-^https:\/\/revenue\.cuto\.app\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://revencuto.lovebabyforever.workers.dev
+^https?:\/\/api\.revenuecat\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://reven.lovebabyforever.workers.dev
+^https?:\/\/api\.rc-backup\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://rc-backup.lovebabyforever.workers.dev
+^https?:\/\/rc\.visionarytech\.ltd\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://rc.lovebabyforever.workers.dev
+^https?:\/\/revenue\.cuto\.app\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://revencuto.lovebabyforever.workers.dev
 
-# MITM 主机名（必须写在最后，且格式正确）
 hostname = api.revenuecat.com, api.rc-backup.com, rc.visionarytech.ltd, revenue.cuto.app
