@@ -1,0 +1,12 @@
+# name = Revenuecat 重定向模块
+# desc = 将 RevenueCat 请求重定向至第三方服务
+# author = 原作者@langkhach270389 @fly
+
+[rewrite_local]
+^https:\/\/api\.revenuecat\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://reven.lovebabyforever.workers.dev
+^https:\/\/api\.rc-backup\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://rc-backup.lovebabyforever.workers.dev
+^https:\/\/rc\.visionarytech\.ltd\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://rc.lovebabyforever.workers.dev
+^https:\/\/revenue\.cuto\.app\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://revencuto.lovebabyforever.workers.dev
+
+[mitm]
+hostname = api.revenuecat.com, api.rc-backup.com, rc.visionarytech.ltd, revenue.cuto.app
