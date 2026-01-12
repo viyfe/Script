@@ -3,10 +3,9 @@
 # author = @langkhach270389 @fly
 
 # 注意：远程引用不需要 [rewrite_local] 标签
-
-^https?:\/\/api\.revenuecat\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://reven.lovebabyforever.workers.dev
-^https?:\/\/api\.rc-backup\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://rc-backup.lovebabyforever.workers.dev
-^https?:\/\/rc\.visionarytech\.ltd\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://rc.lovebabyforever.workers.dev
-^https?:\/\/revenue\.cuto\.app\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ url request-header ^ https://revencuto.lovebabyforever.workers.dev
+^https:\/\/api\.revenuecat\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ https://reven.lovebabyforever.workers.dev header
+^https:\/\/api\.rc-backup\.com\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ https://rc-backup.lovebabyforever.workers.dev header
+^https:\/\/rc\.visionarytech\.ltd\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ https://rc.lovebabyforever.workers.dev header
+^https:\/\/revenue\.cuto\.app\/.+\/(?:receipts|subscribers\/[^/]+(?:\/attributes)?)$ https://revencuto.lovebabyforever.workers.dev header
 
 hostname = api.revenuecat.com, api.rc-backup.com, rc.visionarytech.ltd, revenue.cuto.app
