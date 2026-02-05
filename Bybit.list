@@ -1,26 +1,34 @@
-rules:
- - DOMAIN,bybit-exchange.github.io,💞 地域限制,no-resolve   #bybit交易所
- - DOMAIN,app-measurement.com,💞 地域限制,no-resolve       #bybit交易所
- - DOMAIN-SUFFIX,ffbbbdc6d3c353211fe2ba39c9f744cd.com,💞 地域限制,no-resolve       #bybit交易所
- - DOMAIN-SUFFIX,ffe390afd658c19dcbf707e0597b846d.de,💞 地域限制,no-resolve  #bybit交易所
- - DOMAIN-SUFFIX,amazon.com,💞 地域限制,no-resolve       #亚马逊|bybit交易所
- - DOMAIN-SUFFIX,amazonaws.com,💞 地域限制,no-resolve    #亚马逊|bybit交易所
- - DOMAIN-SUFFIX,bybit.biz,💞 地域限制,no-resolve      #bybit交易所
- - DOMAIN-SUFFIX,bybit.com,💞 地域限制,no-resolve      #bybit交易所
- - DOMAIN-SUFFIX,bycsi.com,💞 地域限制,no-resolve      #bybit交易所
- - DOMAIN-SUFFIX,bytick.com,💞 地域限制,no-resolve     #bybit交易所
- - DOMAIN-SUFFIX,byapis.com,💞 地域限制,no-resolve     #bybit交易所
- - DOMAIN-SUFFIX,bycbe.com,💞 地域限制,no-resolve      #bybit交易所
- - DOMAIN-SUFFIX,bymj.io,💞 地域限制,no-resolve        #bybit交易所
- - DOMAIN-SUFFIX,byabcde.com,💞 地域限制,no-resolve    #bybit交易所
- - DOMAIN-SUFFIX,byapps.net,💞 地域限制,no-resolve     #bybit交易所
- - DOMAIN-SUFFIX,byd3c3.com,💞 地域限制,no-resolve     #bybit交易所
- - DOMAIN-SUFFIX,bybdc6.com,💞 地域限制,no-resolve     #bybit交易所
- - DOMAIN-SUFFIX,appsflyer.com,💞 地域限制,no-resolve  #bybit交易所
- - IP-CIDR,13.32.121.6/32,💞 地域限制       #bybit交易所
- - IP-CIDR,43.133.238.145/32,💞 地域限制    #bybit交易所
- - IP-CIDR,13.33.187.108/32,💞 地域限制     #bybit交易所
- - IP-CIDR,150.109.230.182/32,💞 地域限制   #bybit交易所
- - IP-CIDR,142.251.215.234/32,💞 地域限制   #bybit交易所
- - IP-CIDR,43.133.241.84/32,💞 地域限制     #bybit交易所
- - IP-CIDR,3.160.150.37/32,💞 地域限制      #bybit交易所
+# Bybit 官方及核心业务
+HOST-SUFFIX, bybit.com, 💞 地域限制
+HOST-SUFFIX, bytick.com, 💞 地域限制
+HOST-SUFFIX, bybit.biz, 💞 地域限制
+HOST-SUFFIX, bycsi.com, 💞 地域限制
+HOST-SUFFIX, byapis.com, 💞 地域限制
+HOST-SUFFIX, bycbe.com, 💞 地域限制
+HOST-SUFFIX, bymj.io, 💞 地域限制
+HOST-SUFFIX, byapps.net, 💞 地域限制
+HOST-SUFFIX, byabcde.com, 💞 地域限制
+HOST, bybit-exchange.github.io, 💞 地域限制
+
+# Bybit 混淆与加速域名 (你提供的特征域名)
+HOST-SUFFIX, ffb bbdc6d3c353211fe2ba39c9f744cd.com, 💞 地域限制
+HOST-SUFFIX, ffe390afd658c19dcbf707e0597b846d.de, 💞 地域限制
+HOST-SUFFIX, byd3c3.com, 💞 地域限制
+HOST-SUFFIX, bybdc6.com, 💞 地域限制
+
+# 关联服务 (慎用全域名，改用关键词避免影响其他 App)
+HOST-KEYWORD, bybit, 💞 地域限制
+HOST-SUFFIX, app-measurement.com, 💞 地域限制
+HOST-SUFFIX, appsflyer.com, 💞 地域限制
+
+# Bybit 依赖的特定 AWS 资源 (可选)
+HOST-SUFFIX, amazonaws.com, 💞 地域限制
+
+# IP 规则
+IP-CIDR, 13.32.121.6/32, 💞 地域限制
+IP-CIDR, 43.133.238.145/32, 💞 地域限制
+IP-CIDR, 13.33.187.108/32, 💞 地域限制
+IP-CIDR, 150.109.230.182/32, 💞 地域限制
+IP-CIDR, 142.251.215.234/32, 💞 地域限制
+IP-CIDR, 43.133.241.84/32, 💞 地域限制
+IP-CIDR, 3.160.150.37/32, 💞 地域限制
