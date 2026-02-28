@@ -5,10 +5,10 @@
 @Author：怎么肥事 (修改版)
 1️⃣使用方法：点击个人头像进入信息页面获取
 [rewrite_local]
-^https:\/\/www\.deepflood\.com\/api\/account\/getInfo\/\d+\?readme=1$ url script-request-header Deepflood_DfCheckin.js
+^https:\/\/www\.deepflood\.com\/api\/account\/getInfo\/\d+\?readme=1$ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/Deepflood_DfCheckin.js
 
 [task_local]
-1 0 * * * Deepflood_DfCheckin.js, tag=DF🍗签到, img-url=https://raw.githubusercontent.com/fmz200/wool_scripts/main/icons/author/ZenMoFeiShi.png, enabled=true
+1 0 * * * https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/Deepflood_DfCheckin.js, tag=DF🍗签到, img-url=https://raw.githubusercontent.com/fmz200/wool_scripts/main/icons/author/ZenMoFeiShi.png, enabled=true
 [MITM]
 hostname = www.deepflood.com
 
