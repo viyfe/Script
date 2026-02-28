@@ -2,7 +2,7 @@
 
 /*
 @Name：DF论坛签到
-@Author：怎么肥事 (修改版)
+@Author：viyfe (修改版)
 1️⃣使用方法：点击个人头像进入信息页面获取
 [rewrite_local]
 ^https:\/\/www\.deepflood\.com\/api\/account\/getInfo\/\d+\?readme=1$ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/Deepflood_DfCheckin.js
