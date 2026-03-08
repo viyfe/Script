@@ -1,6 +1,6 @@
 {
-  "id": "viyfe",
-  "name": "咋七八订阅",
+  "id": "my_private_sub",
+  "name": "我的专属 BoxJS 订阅",
   "version": "1.0.1",
   "author": "@YourName",
   "icon": "https://raw.githubusercontent.com/Orz-3/mini/master/Color/appstore.png",
@@ -9,41 +9,48 @@
     {
       "id": "pigsec",
       "name": "PigSec 签到",
-      "keys": ["pigsec_data"],
+      "keys": [
+        "pigsec_data"
+      ],
       "settings": [
         {
           "id": "pigsec_data",
-          "name": "账号数据",
+          "name": "账号数据 (账号#密码)",
           "val": "",
           "type": "textarea",
-          "desc": "格式：账号#密码。多账号换行。"
+          "desc": "请输入你的登录数据。格式为：账号#密码。如果有多个账号，请使用【换行】或【&】符号隔开。例如：1iunxd0#steQXXXXXX",
+          "placeholder": "账号1#密码1\n账号2#密码2"
         }
       ],
       "author": "@YourName",
-      "icons": ["https://raw.githubusercontent.com/Orz-3/mini/master/Color/pig.png"]
+      "repo": "",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/pig.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/pig.png"
+      ]
     },
     {
-      "id": "new_script_demo",
-      "name": "未来加入的新脚本 (示例)",
-      "keys": ["new_script_cookie"],
+      "id": "df_forum_checkin",
+      "name": "DF 论坛签到",
+      "keys": [
+        "DF_DeepfloodHeaders"
+      ],
       "settings": [
         {
-          "id": "new_script_cookie",
-          "name": "某网站的 Cookie",
+          "id": "DF_DeepfloodHeaders",
+          "name": "DF 请求头数据",
           "val": "",
-          "type": "text",
-          "desc": "在这里填入你抓到的 Cookie"
-        },
-        {
-          "id": "new_script_switch",
-          "name": "是否开启某功能",
-          "val": true,
-          "type": "boolean",
-          "desc": "开启后会执行 xxx"
+          "type": "textarea",
+          "desc": "这是重写脚本自动抓取的请求头数据（JSON格式）。包含 Cookie、refract-sign 等鉴权信息。如遇失效，请去网站个人主页重新抓取即可。",
+          "placeholder": "{\"Cookie\":\"...\", \"refract-sign\":\"...\"}"
         }
       ],
-      "author": "@YourName",
-      "icons": ["https://raw.githubusercontent.com/Orz-3/mini/master/Color/safari.png"]
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
+      "icons": [
+        "https://raw.githubusercontent.com/fmz200/wool_scripts/main/icons/author/ZenMoFeiShi.png",
+        "https://raw.githubusercontent.com/fmz200/wool_scripts/main/icons/author/ZenMoFeiShi.png"
+      ]
     }
   ]
 }
