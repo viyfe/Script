@@ -4,7 +4,7 @@
   "version": "1.0.1",
   "author": "@viyfe",
   "icon": "https://raw.githubusercontent.com/Orz-3/mini/master/Color/appstore.png",
-  "repo": "",
+  "repo": "https://github.com/viyfe/Script",
   "apps": [
     {
       "id": "pigsec",
@@ -22,8 +22,8 @@
           "placeholder": "账号1#密码1\n账号2#密码2"
         }
       ],
-      "author": "@YourName",
-      "repo": "",
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
       "icons": [
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/pig.png",
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/pig.png"
@@ -50,6 +50,39 @@
       "icons": [
         "https://raw.githubusercontent.com/fmz200/wool_scripts/main/icons/author/ZenMoFeiShi.png",
         "https://raw.githubusercontent.com/fmz200/wool_scripts/main/icons/author/ZenMoFeiShi.png"
+      ]
+    },
+    {
+      "id": "nga_signin",
+      "name": "NGA 论坛签到",
+      "keys": [
+        "NGA_CREDENTIALS",
+        "NGA_UA"
+      ],
+      "settings": [
+        {
+          "id": "NGA_CREDENTIALS",
+          "name": "账号凭证 (UID,AccessToken)",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 3,
+          "desc": "通过获取脚本自动抓取，或手动输入。\n格式：UID,AccessToken\n多账号请用 & 符号隔开，例如：111,aaa&222,bbb"
+        },
+        {
+          "id": "NGA_UA",
+          "name": "自定义 User-Agent",
+          "val": "Nga_Official/90409",
+          "type": "text",
+          "desc": "如果不懂，请保持默认即可。"
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
+      "script": "https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/nga_signin.js",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/nga.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/nga.png"
       ]
     }
   ]
