@@ -327,60 +327,59 @@ function decrypt(arg) {
     return fromUTF8Array(transformed);
 }
 
-// ================= 底层环境类 (完美兼容圈叉版) =================
-function Env(name) {
-    this.name = name;
-    this.isSurge = () => typeof $httpClient !== "undefined" && !this.isLoon();
-    this.isQuanX = () => typeof $task !== "undefined";
-    this.isLoon = () => typeof $loon !== "undefined";
-    
-    this.getdata = (key) => {
-        if (this.isSurge() || this.isLoon()) return $persistentStore.read(key);
-        if (this.isQuanX()) return $prefs.valueForKey(key);
-    };
-    
-    this.setdata = (val, key) => {
-        if (this.isSurge() || this.isLoon()) return $persistentStore.write(val, key);
-        if (this.isQuanX()) return $prefs.setValueForKey(val, key);
-    };
-    
-    this.msg = (title, subtitle, desc) => {
-        if (this.isSurge() || this.isLoon()) $notification.post(title, subtitle, desc);
-        if (this.isQuanX()) $notify(title, subtitle, desc);
-    };
-    
-    this.log = (msg) => console.log(msg);
-    this.logErr = (err) => console.log(err);
-    this.wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    
-    this.send = (request, cb) => {
-        let method = (request.method || 'GET').toUpperCase();
-        request.method = method;
-        
-        if (this.isQuanX()) {
-            // 圈叉专属请求逻辑
-            if (typeof request === "string") request = { url: request, method: method };
-            $task.fetch(request).then(
-                resp => {
-                    cb(null, resp, resp.body);
-                }, 
-                err => {
-                    cb(err.error || err, null, null);
-                }
-            );
-        } else if (this.isSurge() || this.isLoon()) {
-            let fn = method === 'POST' ? $httpClient.post : (method === 'PUT' ? $httpClient.put : $httpClient.get);
-            if (!fn) { // 降级处理
-                request.method = method;
-                fn = $httpClient.post || $httpClient.get; 
-            }
-            fn(request, (err, resp, body) => {
-                cb(err, resp, body);
-            });
-        } else {
-            cb("环境不支持", null, null);
+// ============================================
+// 下方是通用兼容 JS 的 Env 环境封装类 (Chavy/Peng-YZM)
+// 用于抹平 QX、Surge、Loon 和 Node.js 之间的 API 差异
+// ============================================
+function Env(name, opts) {
+    class Env {
+        constructor(name) { this.name = name; this.logs = []; this.isSurge = () => "undefined" != typeof $httpClient && "undefined" == typeof $loon; this.isQuanX = () => "undefined" != typeof $task; this.isLoon = () => "undefined" != typeof $loon; this.isNode = () => "undefined" != typeof module && !!module.exports; this.node = (() => { if (this.isNode()) { const request = require("request"); return { request } } else return null })(); }
+        getdata(key) {
+            if (this.isSurge() || this.isLoon()) return $persistentStore.read(key);
+            if (this.isQuanX()) return $prefs.valueForKey(key);
+            if (this.isNode()) return process.env[key];
         }
-    };
-    
-    this.done = () => { if (typeof $done !== "undefined") $done(); };
+        setdata(val, key) {
+            if (this.isSurge() || this.isLoon()) return $persistentStore.write(val, key);
+            if (this.isQuanX()) return $prefs.setValueForKey(val, key);
+            if (this.isNode()) { process.env[key] = val; return true; }
+        }
+        msg(title, subtitle = "", desc = "") {
+            if (this.isSurge() || this.isLoon()) $notification.post(title, subtitle, desc);
+            if (this.isQuanX()) $notify(title, subtitle, desc);
+            if (this.isNode()) console.log(`\n[通知] ${title}\n${subtitle}\n${desc}`);
+        }
+        log(...args) {
+            args.length > 0 && (this.logs = [...this.logs, ...args]);
+            console.log(args.join(this.isNode() ? "\n" : "\n"));
+        }
+        post(options, callback) {
+            if (this.isQuanX()) {
+                if (typeof options == "string") options = { url: options };
+                options.method = "POST";
+                $task.fetch(options).then(response => {
+                    response.status = response.statusCode;
+                    callback(null, response, response.body);
+                }, reason => callback(reason.error, null, null));
+            } else if (this.isSurge() || this.isLoon()) {
+                $httpClient.post(options, (err, response, body) => {
+                    if (response) response.status = response.statusCode;
+                    callback(err, response, body);
+                });
+            } else if (this.isNode()) {
+                this.node.request.post(options, (err, response, body) => {
+                    if (response) response.status = response.statusCode;
+                    callback(err, response, body);
+                });
+            }
+        }
+        done(val = {}) {
+            const endTime = new Date().getTime();
+            const costTime = (endTime - (this.startTime || endTime)) / 1000;
+            if (this.isSurge() || this.isQuanX() || this.isLoon()) {
+                $done(val);
+            }
+        }
+    }
+    return new Env(name);
 }
