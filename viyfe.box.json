@@ -100,7 +100,7 @@
           "desc": "可通过代理软件重写自动获取，多账号会自动用 @ 隔开拼接。也可手动填写，格式如：手机号1#token1@手机号2#token2 或直接填token。"
         }
       ],
-      "author": "@YourName",
+      "author": "@viyfe",
       "repo": "",
       "icons": [
         "https://raw.githubusercontent.com/Sliverkiss/QuantumultX/main/icon/pp_parking.png"
