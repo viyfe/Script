@@ -84,6 +84,27 @@
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/nga.png",
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/nga.png"
       ]
+    },
+    {
+      "id": "pp_parking_sign",
+      "name": "PP停车签到",
+      "keys": [
+        "pp_token"
+      ],
+      "settings": [
+        {
+          "id": "pp_token",
+          "name": "PP停车 Token 数据",
+          "val": "",
+          "type": "textarea",
+          "desc": "可通过代理软件重写自动获取，多账号会自动用 @ 隔开拼接。也可手动填写，格式如：手机号1#token1@手机号2#token2 或直接填token。"
+        }
+      ],
+      "author": "@YourName",
+      "repo": "",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/wechat.png"
+      ]
     }
   ]
 }
