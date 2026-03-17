@@ -7,7 +7,9 @@
  */
 
 const $ = new Env("51代理签到");
-let accounts = $.getdata("dailick") || process.env.dailick || "";
+
+// 修复了在 QX/Surge 等环境中因找不到 process 对象而导致 "A JavaScript exception occurred" 的报错
+let accounts = $.getdata("dailick") || (typeof process !== 'undefined' ? process.env.dailick : "") || "";
 let currentCookie = ""; // 存放当前账号的 Cookie 会话
 
 !(async () => {
