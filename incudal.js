@@ -19,7 +19,6 @@ if (isRequest) {
 function getCookie() {
     if ($request && $request.headers) {
         const headers = $request.headers;
-        // 兼容不同客户端 Header 大小写差异
         const cookie = headers['Cookie'] || headers['cookie'];
         const auth = headers['Authorization'] || headers['authorization'];
 
@@ -51,7 +50,7 @@ function checkin() {
     const auth = $.getdata(authKey);
 
     if (!cookie || !auth) {
-        $.msg($.name, "签到失败 ❌", "请先在应用内或网页端触发接口获取 Cookie 和 Auth\n(可以在 BoxJS 中查看是否已填入)");
+        $.msg($.name, "签到失败 ❌", "请先在应用内或网页端触发接口获取 Cookie 和 Auth");
         $.done();
         return;
     }
@@ -65,7 +64,7 @@ function checkin() {
             "Authorization": auth,
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
             "Accept": "application/json, text/plain, */*",
-            "Accept-Encoding": "gzip, deflate", // 移除 br，防止乱码
+            "Accept-Encoding": "gzip, deflate", 
             "Referer": "https://incudal.com/entertainment",
             "Accept-Language": "zh-CN,zh-Hans;q=0.9"
         }
@@ -89,15 +88,44 @@ function checkin() {
                 // 2. 判断是否签到成功
                 else if (result.message === "Check-in successful") {
                     const points = result.bonusPoints || 0;
-                    // 判断是否有硬盘等额外资源奖励
                     let extraReward = "";
-                    if (result.codeType === "d" && result.codeValue) {
-                        extraReward = `\n额外奖励: 硬盘 +${result.codeValue}MB 💾`;
+                    
+                    // 智能解析资源奖励 (新增：内存、流量、CPU等支持)
+                    if (result.codeType && result.codeValue) {
+                        let resName = result.codeType;
+                        let resUnit = "MB"; // 默认单位
+                        let icon = "📦";
+                        
+                        switch (result.codeType.toLowerCase()) {
+                            case 'd':
+                                resName = "硬盘";
+                                icon = "💾";
+                                break;
+                            case 'r':
+                                resName = "内存";
+                                icon = "🖨️";
+                                break;
+                            case 't':
+                                resName = "流量";
+                                resUnit = "GB"; // 流量一般是GB，也有可能是MB
+                                icon = "🌐";
+                                break;
+                            case 'c':
+                                resName = "CPU";
+                                resUnit = "%";
+                                icon = "⚙️";
+                                break;
+                            default:
+                                resName = `未知资源(${result.codeType})`;
+                                resUnit = "";
+                                break;
+                        }
+                        extraReward = `\n额外奖励: ${resName} +${result.codeValue}${resUnit} ${icon}`;
                     }
                     
                     $.msg($.name, "签到成功 ✅", `获得奖励积分: ${points} 🎁${extraReward}`);
                 } 
-                // 3. 处理其他可能的业务报错（如 Token 失效）
+                // 3. 处理其他可能的业务报错
                 else if (result.error || result.code) {
                     $.msg($.name, "签到异常 ⚠️", result.error || result.code || "未知错误");
                 } 
