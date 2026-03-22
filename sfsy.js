@@ -218,13 +218,26 @@ async function main() {
 }
 
 function getCookie() {
-    if ($request.url.includes("mcs-mimp-web.sf-express.com")) {
+    if ($request.url.indexOf("mcs-mimp-web.sf-express.com") > -1) {
         const ck = $request.headers['Cookie'] || $request.headers['cookie'];
-        if (ck?.includes('sessionId=')) {
-            let old = $.getdata(Config.ENV_NAME) || "";
-            if (!old.includes(ck)) {
-                $.setdata(old ? `${old}&${ck}` : ck, Config.ENV_NAME);
-                $.msg($.name, "✅ 获取Cookie成功", "已存入持久化变量");
+        if (ck && ck.indexOf('sessionId=') > -1) {
+            let currentCK = $.getdata(Config.ENV_NAME) || "";
+            
+            // 提取当前抓取到的关键信息（手机号或 SessionID）
+            const mobileMatch = ck.match(/_login_mobile_=([^;]+)/);
+            const sessionMatch = ck.match(/sessionId=([^;]+)/);
+            const identity = mobileMatch ? mobileMatch[1] : (sessionMatch ? sessionMatch[1] : "");
+
+            if (identity) {
+                // 如果本地已经存过这个 identity（账号），就不再重复添加
+                if (currentCK.indexOf(identity) > -1) {
+                    // console.log("检测到重复账号，跳过写入");
+                } else {
+                    let newCk = currentCK ? `${currentCK}&${ck}` : ck;
+                    $.setdata(newCk, Config.ENV_NAME);
+                    $.msg($.name, "获取Cookie成功🎉", `账号: ${identity.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}`);
+                    console.log(`[顺丰速运] 存入新Cookie: ${ck}`);
+                }
             }
         }
     }
