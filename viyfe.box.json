@@ -1,7 +1,7 @@
 {
   "id": "weifv",
   "name": "杂七杂八",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "@viyfe",
   "icon": "https://raw.githubusercontent.com/Orz-3/mini/master/Color/appstore.png",
   "repo": "https://github.com/viyfe/Script",
@@ -128,6 +128,31 @@
       "icons": [
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/terminal.png",
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/terminal.png"
+      ]
+    },
+    {
+      "id": "sfsy_checkin",
+      "name": "顺丰速运",
+      "keys": [
+        "sfsyUrl"
+      ],
+      "settings": [
+        {
+          "id": "sfsyUrl",
+          "name": "顺丰 Cookie 列表",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 3,
+          "desc": "可通过重写自动抓取。多账号请使用【&】符号隔开。包含 sessionId, _login_mobile_ 等关键信息。",
+          "placeholder": "Cookie1&Cookie2..."
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
+      "icons": [
+        "https://raw.githubusercontent.com/Sliverkiss/QuantumultX/main/icon/sfsy.png",
+        "https://raw.githubusercontent.com/Sliverkiss/QuantumultX/main/icon/sfsy.png"
       ]
     }
   ]
