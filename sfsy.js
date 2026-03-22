@@ -1,6 +1,8 @@
 /**
- * 顺丰速运日常积分任务 - 1:1 像素级还原修复版
- * 修复：TypeError: undefined is not an object (evaluating 'res.obj.integralTaskSignPackageVOList[0]')
+ * 顺丰速运日常积分任务 
+ * Author: 爱学习的呆子
+ * Version: 1.0.0
+ * Date: 2026-03-22
  */
 
 const $ = new Env("顺丰速运");
