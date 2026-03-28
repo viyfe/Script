@@ -2,7 +2,7 @@
 
 /*
 @Name：NS论坛签到
-@Author：怎么肥事
+@Author：viyfe
 1️⃣使用方法：点击个人头像进入信息页面获取
 [rewrite_local]
 ^https:\/\/www\.nodeseek\.com\/api\/account\/getInfo\/\d+\?readme=1$ url script-request-header https://raw.githubusercontent.com/ZenmoFeiShi/Qx/refs/heads/main/Nodeseek_NsCheckin.js
