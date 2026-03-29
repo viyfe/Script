@@ -3,7 +3,7 @@
 # 适用：Quantumult X
 
 [rewrite_local]
-# 同时拦截 RevenueCat 和 RainViewer 原生接口
+# 拦截双域名验证
 ^https?:\/\/(api\.revenuecat\.com\/v1\/subscribers|api\.rainviewer\.com\/mobile\/purchases\/ios\/actual) url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/rainviewer.js
 
 [mitm]
