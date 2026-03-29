@@ -3,8 +3,8 @@
 # 适用：Quantumult X
 
 [rewrite_local]
-# 匹配个人资料接口并修改返回体
-^https?:\/\/api\.rainviewer\.com\/v2\/profile url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/rainviewer.js
+# 精准匹配你抓包到的 2026 新接口
+^https?:\/\/api\.rainviewer\.com\/mobile\/purchases\/ios\/actual url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/rainviewer.js
 
 [mitm]
 hostname = api.rainviewer.com
