@@ -1,0 +1,10 @@
+# RainViewer Pro Unlock Snippet
+# 作用：解锁 RainViewer 实时雷达高级功能及去广告
+# 适用：Quantumult X
+
+[rewrite_local]
+# 匹配个人资料接口并修改返回体
+^https?:\/\/api\.rainviewer\.com\/v2\/profile url script-response-body https://raw.githubusercontent.com/yqc007/QuantumultX/master/RainViewerCrack.js
+
+[mitm]
+hostname = api.rainviewer.com
