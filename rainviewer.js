@@ -1,43 +1,41 @@
 /*************************************
-项目名称：RainViewer 2026 强制 Pro 解锁 (全量覆盖版)
-适用接口：api.revenuecat.com & api.rainviewer.com
+项目名称：RainViewer 2026 强制 Pro 解锁
+脚本功能：同步解锁所有潜在验证接口
 *************************************/
 
 var obj = JSON.parse($response.body);
 const url = $request.url;
 
-// 1. 拦截 RevenueCat (所有 Pro 功能的核心判定位)
+// 1. 核心验证：RevenueCat 接口 (解锁 Pro 权限组)
 if (url.indexOf("/v1/subscribers") != -1) {
   const proInfo = {
     "expires_date": "2099-12-31T23:59:59Z",
     "purchase_date": "2023-01-01T00:00:00Z",
     "period_type": "active",
-    "store": "app_store",
-    "is_sandbox": false
+    "store": "app_store"
   };
 
-  // 强制注入 Pro 专用的权限组
+  // 同时注入 premium 和 pro 权限，确保开启最高级功能
   obj.subscriber.entitlements = {
-    "pro": {
-      "expires_date": "2099-12-31T23:59:59Z",
-      "product_identifier": "com.meteoviewer.pro_1year",
-      "purchase_date": "2023-01-01T00:00:00Z"
-    },
     "premium": {
       "expires_date": "2099-12-31T23:59:59Z",
       "product_identifier": "com.meteoviewer.premium_3_1year",
       "purchase_date": "2023-01-01T00:00:00Z"
+    },
+    "pro": {
+      "expires_date": "2099-12-31T23:59:59Z",
+      "product_identifier": "com.meteoviewer.pro_1year",
+      "purchase_date": "2023-01-01T00:00:00Z"
     }
   };
 
-  // 强制注入订阅列表
   obj.subscriber.subscriptions = {
     "com.meteoviewer.pro_1year": proInfo,
     "com.meteoviewer.premium_3_1year": proInfo
   };
 }
 
-// 2. 拦截 RainViewer 自己的 actual 接口 (修正你抓包到的过期数据)
+// 2. 原生验证：修正你抓包到的实际过期数据 
 if (url.indexOf("/mobile/purchases/ios/actual") != -1) {
   if (obj.data) {
     Object.assign(obj.data, {
@@ -45,7 +43,7 @@ if (url.indexOf("/mobile/purchases/ios/actual") != -1) {
       "is_expired": false,
       "is_cancelled": false,
       "expiration": 4070908800,
-      "type": 1, 
+      "type": 1, // 强制提升为 Pro 类型
       "products": ["PRO_1YEAR", "PREMIUM_FEATURES_3_1YEAR"],
       "plan_id": "PRO_1YEAR",
       "has_orders": true
