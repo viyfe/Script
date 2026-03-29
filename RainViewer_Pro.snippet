@@ -1,0 +1,11 @@
+# RainViewer Pro Unlock Snippet
+# 核心逻辑：双向劫持 RevenueCat 与原生接口，并抹除 X-Rv-Signature 签名校验 [cite: 1, 18, 23]
+# 适用版本：2026 年最新版 RainViewer [cite: 24]
+
+[rewrite_local]
+# 拦截所有可能的会员验证路径并执行本地脚本 [cite: 2, 23]
+^https?:\/\/(api\.revenuecat\.com\/v1\/subscribers|api\.rainviewer\.com\/mobile\/purchases\/ios\/actual) url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/RainViewer_Pro.js
+
+[mitm]
+# 必须包含这两个关键域名才能解密签名头 [cite: 17, 18]
+hostname = api.revenuecat.com, api.rainviewer.com
