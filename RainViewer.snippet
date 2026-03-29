@@ -3,8 +3,8 @@
 # 适用：Quantumult X
 
 [rewrite_local]
-# 拦截 RevenueCat 验证接口
-^https?:\/\/api\.revenuecat\.com\/v1\/(subscribers|receipts) url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/rainviewer.js
+# 同时拦截 RevenueCat 和 RainViewer 原生接口
+^https?:\/\/(api\.revenuecat\.com\/v1\/subscribers|api\.rainviewer\.com\/mobile\/purchases\/ios\/actual) url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/rainviewer.js
 
 [mitm]
-hostname = api.revenuecat.com
+hostname = api.revenuecat.com, api.rainviewer.com
