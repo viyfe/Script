@@ -1,6 +1,10 @@
 /**
  * @file incudal.js
- * @description Incudal 自动签到与获取 Cookie 脚本 (基于标准 Env)
+ * @description Incudal 自动签到与获取 Cookie 脚本
+ * @features 
+ * 1. 伪装 iOS 17.4 UA 绕过 Cloudflare 对旧系统的拦截
+ * 2. 凭证去重：只有当 Cookie/Auth 发生变化时才弹出通知
+ * 3. 完整资源奖励（CPU/内存/流量/硬盘）解析逻辑
  */
 
 const $ = new Env("Incudal签到");
@@ -9,6 +13,9 @@ const isRequest = typeof $request !== "undefined";
 const checkinUrl = "https://incudal.com/api/checkin/checkin";
 const cookieKey = "incudal_cookie";
 const authKey = "incudal_auth";
+
+// 统一伪装为高版本 UA，解决 iOS 15.0.1 的指纹拦截问题
+const currentUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1";
 
 if (isRequest) {
     getCookie();
@@ -19,27 +26,39 @@ if (isRequest) {
 function getCookie() {
     if ($request && $request.headers) {
         const headers = $request.headers;
-        const cookie = headers['Cookie'] || headers['cookie'];
-        const auth = headers['Authorization'] || headers['authorization'];
+        const newCookie = headers['Cookie'] || headers['cookie'];
+        const newAuth = headers['Authorization'] || headers['authorization'];
+
+        // 获取本地已保存的旧凭证用于对比
+        const oldCookie = $.getdata(cookieKey);
+        const oldAuth = $.getdata(authKey);
 
         let msg = [];
-        if (cookie && cookie.includes("cf_clearance")) {
-            if ($.setdata(cookie, cookieKey)) {
-                msg.push("Cookie 获取成功 🎉");
-                $.log(`[获取凭证]: Cookie 保存成功`);
-            }
-        }
-        if (auth && auth.includes("Bearer")) {
-            if ($.setdata(auth, authKey)) {
-                msg.push("Auth 获取成功 🎉");
-                $.log(`[获取凭证]: Auth 保存成功`);
+        let isChanged = false;
+
+        // 1. 处理 Cookie 更新逻辑
+        if (newCookie && newCookie !== oldCookie) {
+            if ($.setdata(newCookie, cookieKey)) {
+                isChanged = true;
+                msg.push("Cookie 已更新 🎉");
+                $.log(`[获取凭证]: 检测到新 Cookie`);
             }
         }
 
-        if (msg.length > 0) {
+        // 2. 处理 Auth 更新逻辑
+        if (newAuth && newAuth.includes("Bearer") && newAuth !== oldAuth) {
+            if ($.setdata(newAuth, authKey)) {
+                isChanged = true;
+                msg.push("Auth 已更新 🎉");
+                $.log(`[获取凭证]: 检测到新 Auth`);
+            }
+        }
+
+        // 3. 只有在数据发生变化时才弹出通知
+        if (isChanged && msg.length > 0) {
             $.msg($.name, "获取凭证成功", msg.join("\n"));
         } else {
-            $.log(`[获取凭证]: 未找到有效凭证`);
+            $.log(`[获取凭证]: 凭证与本地一致，跳过保存与通知`);
         }
     }
     $.done();
@@ -50,7 +69,7 @@ function checkin() {
     const auth = $.getdata(authKey);
 
     if (!cookie || !auth) {
-        $.msg($.name, "签到失败 ❌", "请先在应用内或网页端触发接口获取 Cookie 和 Auth");
+        $.msg($.name, "签到失败 ❌", "请先在网页端触发接口获取凭证");
         $.done();
         return;
     }
@@ -62,7 +81,7 @@ function checkin() {
             "Origin": "https://incudal.com",
             "Cookie": cookie,
             "Authorization": auth,
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+            "User-Agent": currentUA, 
             "Accept": "application/json, text/plain, */*",
             "Accept-Encoding": "gzip, deflate", 
             "Referer": "https://incudal.com/entertainment",
@@ -75,7 +94,7 @@ function checkin() {
     $.post(request, (error, response, data) => {
         if (error) {
             $.log(`[签到请求失败]: ${JSON.stringify(error)}`);
-            $.msg($.name, "网络请求失败 ❌", error);
+            $.msg($.name, "网络请求失败 ❌", "请尝试更换更纯净的节点后重试");
         } else {
             $.log(`[签到返回数据]: ${data}`);
             try {
@@ -83,65 +102,50 @@ function checkin() {
                 
                 // 1. 判断是否重复签到
                 if (result.code === "CHECKIN_ALREADY_TODAY") {
-                    $.msg($.name, "今日已签到 🔁", "重复触发，无需理会");
+                    $.msg($.name, "今日已签到 🔁", "任务已完成，无需重复触发");
                 } 
                 // 2. 判断是否签到成功
                 else if (result.message === "Check-in successful") {
                     const points = result.bonusPoints || 0;
                     let extraReward = "";
                     
-                    // 智能解析资源奖励 (新增：内存、流量、CPU等支持)
+                    // 智能解析资源奖励
                     if (result.codeType && result.codeValue) {
                         let resName = result.codeType;
-                        let resUnit = "MB"; // 默认单位
+                        let resUnit = "MB";
                         let icon = "📦";
                         
                         switch (result.codeType.toLowerCase()) {
-                            case 'd':
-                                resName = "硬盘";
-                                icon = "💾";
-                                break;
-                            case 'r':
-                                resName = "内存";
-                                icon = "🖨️";
-                                break;
-                            case 't':
-                                resName = "流量";
-                                resUnit = "GB"; // 流量一般是GB，也有可能是MB
-                                icon = "🌐";
-                                break;
-                            case 'c':
-                                resName = "CPU";
-                                resUnit = "%";
-                                icon = "⚙️";
-                                break;
-                            default:
-                                resName = `未知资源(${result.codeType})`;
-                                resUnit = "";
-                                break;
+                            case 'd': resName = "硬盘"; icon = "💾"; break;
+                            case 'r': resName = "内存"; icon = "🖨️"; break;
+                            case 't': resName = "流量"; resUnit = "GB"; icon = "🌐"; break;
+                            case 'c': resName = "CPU"; resUnit = "%"; icon = "⚙️"; break;
+                            default: resName = `未知资源(${result.codeType})`; resUnit = ""; break;
                         }
                         extraReward = `\n额外奖励: ${resName} +${result.codeValue}${resUnit} ${icon}`;
                     }
-                    
                     $.msg($.name, "签到成功 ✅", `获得奖励积分: ${points} 🎁${extraReward}`);
                 } 
-                // 3. 处理其他可能的业务报错
+                // 3. 处理业务报错
                 else if (result.error || result.code) {
                     $.msg($.name, "签到异常 ⚠️", result.error || result.code || "未知错误");
                 } 
-                // 4. 未知情况兜底
+                // 4. 兜底
                 else {
-                    $.msg($.name, "签到完成，状态未知 ❓", `返回数据: ${data}`);
+                    $.msg($.name, "签到完成，状态未知 ❓", `请检查日志`);
                 }
             } catch (e) {
                 $.log(`[JSON解析失败]: ${e}`);
-                $.msg($.name, "请求成功，解析失败 ⚠️", `原始返回: ${data}`);
+                if (data.includes("cf-browser-verification") || data.includes("Ray ID")) {
+                    $.msg($.name, "被拦截 🛡️", "Cloudflare 拦截，请在浏览器通过验证后重抓");
+                } else {
+                    $.msg($.name, "解析失败 ⚠️", `原始返回内容已记录在日志`);
+                }
             }
         }
         $.done();
     });
 }
-
 // ==========================================
 // Env 运行环境代码 (保持不变)
 // ==========================================
