@@ -18,31 +18,37 @@ try {
         obj.success = true;
         obj.message = "成功";
         obj.code = 200;
+        // 严格对齐抓包发现的会员对象模型，使用 String 类型避免 Dart 解析崩溃
         obj.result = {
-            "isVip": true,
-            "expireTime": 4070908800000, // 续期到 2099 年
-            "vipType": 1
+            "id": "1592946516263490903",
+            "appleProductId": "1596826350821229103",
+            "productId": "1596826350821229103",
+            "type": "3",
+            "price": "128",
+            "desc": "12个月",
+            "expireTime": 4070908800000, // 给一个超长的未来时间戳
+            "endTime": 4070908800000,
+            "isVip": true
         };
     }
 
     // 2. 清除云端下发的广告位 ID (拦截 getAdsSettingsV2)
     if (url.includes("/book/config/getAdsSettingsV2")) {
         if (obj.result) {
-            // 清空所有包含 Id 的广告单元
+            // 清空所有包含 Id 的广告单元，实现物理防加载
             for (let key in obj.result) {
                 if (key.includes("Id")) {
                     obj.result[key] = "";
                 }
             }
             // 延长激励视频等免广告时间
-            if (obj.result.readRewardTime) obj.result.readRewardTime = 99999;
-            if (obj.result.listenRewardTime) obj.result.listenRewardTime = 99999;
+            if (obj.result.readRewardTime) obj.result.readRewardTime = 999999;
+            if (obj.result.listenRewardTime) obj.result.listenRewardTime = 999999;
         }
     }
 
     // 3. 搜索入口与其他权限 (拦截 checkSearchEntrance 等)
     if (url.includes("/book/user/checkSearchEntrance") || url.includes("/book/config/getBookSettingsV2")) {
-        // Surge 抓包显示这个接口原本就返回 true，这里做个双保险
         if (obj.result === false) obj.result = true;
         if (obj.result && obj.result.canSearchBooks !== undefined) {
             obj.result.canSearchBooks = true;
