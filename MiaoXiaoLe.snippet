@@ -1,10 +1,13 @@
-# 喵小乐 (MiaoXiaoLe) VIP解锁 & 去广告 Snippet
-# 核心逻辑：伪造 VIP 权限，清空广告位 ID
+# 喵小乐 (MiaoXiaoLe) 终极解锁 Snippet
+# 修复 Dart 引擎绕过圈叉重写的问题
+
+[filter_local]
+# 核心：拦截 UDP，强制 Dart 引擎降级至 TCP，使其能够被重写劫持
+host, api.miaoxiaole.com, reject, udp
 
 [rewrite_local]
-# 拦截 VIP 校验与广告配置接口并执行远端脚本
-^https:\/\/api\.miaoxiaole\.com\/book\/(user\/checkVipV2|config\/getAdsSettingsV2) url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/miaoxiaole_vip.js
+# 放宽正则，覆盖所有 /book/ 下的接口
+^https?:\/\/api\.miaoxiaole\.com\/book\/.* url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/miaoxiaole_vip.js
 
 [mitm]
-# 必须包含此域名才能解密流量
 hostname = api.miaoxiaole.com
