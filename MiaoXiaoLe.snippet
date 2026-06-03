@@ -1,0 +1,10 @@
+# 喵小乐 (MiaoXiaoLe) VIP解锁 & 去广告 Snippet
+# 核心逻辑：伪造 VIP 权限，清空广告位 ID
+
+[rewrite_local]
+# 拦截 VIP 校验与广告配置接口并执行远端脚本
+^https:\/\/api\.miaoxiaole\.com\/book\/(user\/checkVipV2|config\/getAdsSettingsV2) url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/miaoxiaole_vip.js
+
+[mitm]
+# 必须包含此域名才能解密流量
+hostname = api.miaoxiaole.com
