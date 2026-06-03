@@ -1,5 +1,6 @@
 /**
- * 喵小乐 (MiaoXiaoLe) VIP解锁 & 去广告脚本
+ * 喵小乐 (MiaoXiaoLe) VIP解锁 & 去广告
+ * 适配 Quantumult X / Loon / Surge
  */
 
 let url = $request.url;
@@ -12,31 +13,40 @@ if (!body) {
 try {
     let obj = JSON.parse(body);
 
-    // 1. 解锁 VIP 权限
+    // 1. 解锁 VIP 权限 (拦截 checkVipV2)
     if (url.includes("/book/user/checkVipV2")) {
         obj.success = true;
         obj.message = "成功";
         obj.code = 200;
-        // 伪造 result，通常赋予 true 或包含过期时间的对象即可绕过本地判断
         obj.result = {
             "isVip": true,
-            "expireTime": 4070908800000, // 2099年
+            "expireTime": 4070908800000, // 续期到 2099 年
             "vipType": 1
         };
     }
 
-    // 2. 清除云端下发的广告位 ID
+    // 2. 清除云端下发的广告位 ID (拦截 getAdsSettingsV2)
     if (url.includes("/book/config/getAdsSettingsV2")) {
         if (obj.result) {
-            // 将所有包含 Id 的广告位字段清空
+            // 清空所有包含 Id 的广告单元
             for (let key in obj.result) {
                 if (key.includes("Id")) {
                     obj.result[key] = "";
                 }
             }
-            // 顺便把激励视频等时间改为 99999
+            // 延长激励视频等免广告时间
             if (obj.result.readRewardTime) obj.result.readRewardTime = 99999;
             if (obj.result.listenRewardTime) obj.result.listenRewardTime = 99999;
+        }
+    }
+
+    // 3. 搜索入口与其他权限 (拦截 checkSearchEntrance 等)
+    if (url.includes("/book/user/checkSearchEntrance") || url.includes("/book/config/getBookSettingsV2")) {
+        // Surge 抓包显示这个接口原本就返回 true，这里做个双保险
+        if (obj.result === false) obj.result = true;
+        if (obj.result && obj.result.canSearchBooks !== undefined) {
+            obj.result.canSearchBooks = true;
+            obj.result.canListenBooks = true;
         }
     }
 
