@@ -1,7 +1,7 @@
 /**
  * 静态反混淆版本：字符串、索引、包装器和语义名均由静态分析推断。
  * 除场景模块外，本文件以保留原始运行行为为目标。
- * 场景模块已根据 2026-07-17 的脱敏 HAR 与 Quantumult X 原生会话更新为当前 skillBuilder 流程。
+ * 场景模块使用已验证仍可用的 ADC 旧接口，并修复动态分页、无界递归和重复场景问题。
  */
 
 /*
@@ -127,15 +127,12 @@ $.is_debug = ($.isNode() ? process.env.IS_DEDUG : $.getdata("is_debug")) || "fal
 let pendingScore = 0,
   userScore = 0;
 
-const SCENE_API_BASE = "https://developer.aliyun.com/adc/api/skillBuilder",
-  SCENE_WEB_BASE = "https://www.aliyun.com",
-  SCENE_LANGUAGE = "zh-CN",
-  SCENE_APP_SITE = "technology_solutions",
-  SCENE_LIST_PAGE_SIZE = 100,
-  SCENE_MAX_ATTEMPTS = 3,
-  SCENE_RECORD_POLL_ATTEMPTS = 15,
-  SCENE_DEPLOY_POLL_ATTEMPTS = 120,
-  SCENE_POLL_INTERVAL_MS = 3000;
+const SCENE_API_BASE = "https://developer.aliyun.com/adc/api",
+  SCENE_HISTORY_KEY = "aliyunWeb_scene_history_v1",
+  SCENE_LIST_PAGE_SIZE = 20,
+  SCENE_MAX_ATTEMPTS = 40,
+  SCENE_FAILURE_COOLDOWN_MS = 24 * 60 * 60 * 1000,
+  SCENE_HISTORY_MAX_ENTRIES = 500;
 
 function readCookieValue(cookie, name) {
   for (const part of String(cookie || "").split(";")) {
@@ -147,43 +144,88 @@ function readCookieValue(cookie, name) {
   return "";
 }
 
-function selectSceneCandidates(response) {
-  const records = response?.data?.records || response?.records || [];
-  return records
-    .filter((record) => record?.freeModeEnabled === true && record?.id && record?.targetId)
-    .sort(() => Math.random() - 0.5);
+function getSceneListItems(response) {
+  const scenes = response?.data?.list;
+  return Array.isArray(scenes) ? scenes.filter((scene) => scene?.id) : [];
 }
 
-function findActiveExperienceRecord(response, expectedSceneId) {
-  const records = response?.data?.records || response?.records || [];
-  return records.find((record) =>
-    record?.id &&
-    String(record?.sceneId) === String(expectedSceneId) &&
-    String(record?.expMode || "").toUpperCase() === "FREE" &&
-    record?.inExperiencing !== false
-  ) || null;
+function getSceneTotalPages(response, requestedPageSize = SCENE_LIST_PAGE_SIZE) {
+  const pageInfo = response?.data?.pageInfo || {};
+  const pageSize = Math.max(1, Number(pageInfo.pageSize) || requestedPageSize);
+  const totalItems = Math.max(getSceneListItems(response).length, Number(pageInfo.totalItems) || 0);
+  return Math.max(1, Math.min(100, Math.ceil(totalItems / pageSize)));
 }
 
-function getCurrentExperienceRecord(response, expectedSceneId) {
-  const record = response?.data?.userExperienceRecord;
-  if (
-    !record?.id ||
-    String(record?.sceneId) !== String(expectedSceneId) ||
-    String(record?.expMode || "").toUpperCase() !== "FREE"
-  ) return null;
-  return record;
+function shuffleSceneCandidates(scenes) {
+  const result = [...scenes];
+  for (let index = result.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
 }
 
-function classifyDeployProcess(data) {
-  const createStatus = data?.createStatus || "";
-  const releaseStatus = data?.releaseStatus || "";
-  if (createStatus === "CREATE_SUCCESS" || createStatus === "NO_NEED_TO_CREATE") return "ready";
-  if (
-    createStatus === "CREATE_FAILED" ||
-    releaseStatus === "RELEASE_FAILED" ||
-    (releaseStatus === "RELEASE_SUCCESS" && createStatus !== "CREATE_SUCCESS")
-  ) return "failed";
-  return "pending";
+function getSceneAccountKey(account) {
+  const source = String(account?.userId || account?.userName || ("account-" + (account?.index || 0)));
+  let hash = 2166136261;
+  for (let index = 0; index < source.length; index++) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return "account-" + (hash >>> 0).toString(36);
+}
+
+function parseSceneHistory(rawHistory) {
+  let history = rawHistory;
+  if (typeof history === "string") {
+    try {
+      history = JSON.parse(history);
+    } catch {
+      history = null;
+    }
+  }
+  if (!history || typeof history !== "object" || Array.isArray(history)) history = {};
+  if (!history.accounts || typeof history.accounts !== "object" || Array.isArray(history.accounts)) {
+    history.accounts = {};
+  }
+  history.version = 1;
+  return history;
+}
+
+function getSceneHistoryBucket(history, accountKey) {
+  const normalizedHistory = parseSceneHistory(history);
+  if (!normalizedHistory.accounts[accountKey] || typeof normalizedHistory.accounts[accountKey] !== "object") {
+    normalizedHistory.accounts[accountKey] = {};
+  }
+  return normalizedHistory.accounts[accountKey];
+}
+
+function shouldSkipSceneHistoryEntry(entry, now = Date.now()) {
+  if (!entry || typeof entry !== "object") return false;
+  if (["completed", "server_completed", "unsupported"].includes(entry.status)) return true;
+  if (entry.status === "failed") {
+    return now - (Number(entry.updatedAt) || 0) < SCENE_FAILURE_COOLDOWN_MS;
+  }
+  return false;
+}
+
+function markSceneHistoryEntry(history, accountKey, scene, status, now = Date.now()) {
+  if (!scene?.id) return history;
+  const normalizedHistory = parseSceneHistory(history);
+  const bucket = getSceneHistoryBucket(normalizedHistory, accountKey);
+  bucket[String(scene.id)] = {
+    status,
+    updatedAt: now,
+    name: String(scene.name || "").slice(0, 120)
+  };
+  const entries = Object.entries(bucket);
+  if (entries.length > SCENE_HISTORY_MAX_ENTRIES) {
+    entries
+      .sort((left, right) => (Number(right[1]?.updatedAt) || 0) - (Number(left[1]?.updatedAt) || 0))
+      .slice(SCENE_HISTORY_MAX_ENTRIES)
+      .forEach(([sceneId]) => delete bucket[sceneId]);
+  }
+  return normalizedHistory;
 }
 async function main() {
   try {
@@ -702,319 +744,230 @@ class UserInfo {
       this.ckStatus = false, $.log("⛔️ 文章点赞失败! " + error);
     }
   }
-  async doScene() {
-    try {
-      const candidates = await this.getSceneCandidates();
-      if (!candidates.length) {
-        $.log("⛔️ 没有找到可用的免费场景");
-        return false;
-      }
-      for (let attempt = 0; attempt < Math.min(SCENE_MAX_ATTEMPTS, candidates.length); attempt++) {
-        const scene = candidates[attempt];
-        $.log("🚀 场景尝试 " + (attempt + 1) + "/" + Math.min(SCENE_MAX_ATTEMPTS, candidates.length) + ": " + (scene.name || "未命名场景"));
-        if (await this.runScene(scene)) return true;
-        if (attempt + 1 < Math.min(SCENE_MAX_ATTEMPTS, candidates.length)) await this.sceneWait(SCENE_POLL_INTERVAL_MS);
-      }
-      $.log("⛔️ 本次没有完成可用场景");
-      return false;
-    } catch (error) {
-      $.log("⛔️ 场景流程失败! " + error);
-      return false;
-    }
+  loadSceneHistoryContext() {
+    const history = parseSceneHistory($.getdata(SCENE_HISTORY_KEY) || "");
+    const accountKey = getSceneAccountKey(this);
+    const bucket = getSceneHistoryBucket(history, accountKey);
+    return { history, accountKey, bucket };
   }
-  buildSceneHeaders(referer, extraHeaders = {}) {
-    return {
-      'Accept': "application/json, text/plain, */*",
-      'Cookie': this.token,
-      'Origin': SCENE_WEB_BASE,
-      'Referer': referer,
-      'User-Agent': this.headers["User-Agent"],
-      ...extraHeaders
-    };
+  saveSceneHistoryContext(context) {
+    return $.setdata(JSON.stringify(context.history), SCENE_HISTORY_KEY);
   }
-  async sceneWait(milliseconds) {
-    return await $.wait(milliseconds);
-  }
-  async getSceneCandidates() {
-    const response = await this.fetch({
-      'url': SCENE_API_BASE + "/pageListDeployInfo",
+  async getLegacySceneListPage(pageNum) {
+    return await this.fetch({
+      'url': SCENE_API_BASE + "/getSceneList",
       'type': "get",
       'params': {
-        'page': 1,
+        'tags': encodeURIComponent(","),
+        'difficulty': "",
+        'orderBy': "useCountTotal",
+        'pageNum': pageNum,
         'pageSize': SCENE_LIST_PAGE_SIZE
       },
-      'headers': this.buildSceneHeaders(SCENE_WEB_BASE + "/solution/free")
-    });
-    if (String(response?.code) !== "200") {
-      $.log("⛔️ 获取当前场景列表失败: " + (response?.message || "无响应"));
-      return [];
-    }
-    const candidates = selectSceneCandidates(response);
-    $.log("✅ 找到 " + candidates.length + " 个免费场景候选");
-    return candidates;
-  }
-  async runScene(scene) {
-    const currentSceneId = scene.id;
-    const deployUrl = SCENE_WEB_BASE + "/solution/tech-solution-deploy/" + scene.targetId;
-    if (!await this.openSceneDeployPage(deployUrl)) return false;
-
-    const pageInfo = await this.getScenePageInfo(currentSceneId, deployUrl);
-    if (String(pageInfo?.code) !== "200" || pageInfo?.data?.freeModeEnabled !== true) {
-      $.log("⛔️ 当前候选不支持免费体验，切换场景");
-      return false;
-    }
-
-    await this.getSceneExtInfo(currentSceneId, deployUrl);
-    await this.getSceneResourceTemplateInfo(currentSceneId, deployUrl);
-    await this.checkSceneTokenStatus(deployUrl);
-    await this.getSkillBuilderUserInfo(deployUrl);
-    await this.getSkillBuilderUserToken(deployUrl);
-
-    let recordsResponse = await this.listExperienceRecords(currentSceneId, deployUrl);
-    let record = findActiveExperienceRecord(recordsResponse, currentSceneId);
-    await this.getUserSceneExperienceInfo(currentSceneId, record?.id, deployUrl);
-
-    if (!record) {
-      await this.checkSceneTokenStatus(deployUrl);
-      record = await this.waitForExperienceRecord(currentSceneId, deployUrl);
-    }
-    if (!record?.id) {
-      $.log("⛔️ 等待体验记录超时，切换场景");
-      return false;
-    }
-
-    await this.getUserSceneExperienceInfo(currentSceneId, record.id, deployUrl);
-    await this.getExperienceInfo(record.id, deployUrl);
-    const deployResult = await this.waitForDeployProcess(currentSceneId, record.id, deployUrl);
-    if (deployResult !== "ready") {
-      await this.stopExperienceByRecordId(record.id, deployUrl);
-      return false;
-    }
-
-    await this.sceneWait(5000);
-    return await this.stopExperienceByRecordId(record.id, deployUrl);
-  }
-  async openSceneDeployPage(deployUrl) {
-    const html = await this.fetch({
-      'url': deployUrl,
-      'type': "get",
-      'resultType': "data",
       'headers': {
-        'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         'Cookie': this.token,
-        'Referer': SCENE_WEB_BASE + "/solution/free",
+        'Referer': "https://developer.aliyun.com/adc/labs/",
         'User-Agent': this.headers["User-Agent"]
       }
     });
-    if (!html) {
-      $.log("⛔️ 打开场景部署页失败");
-      return false;
+  }
+  async getLegacySceneCatalog() {
+    const firstPage = await this.getLegacySceneListPage(1);
+    if (String(firstPage?.code) !== "200") {
+      $.log("⛔️ 获取场景列表失败: " + (firstPage?.message || "无响应"));
+      return [];
     }
-    return true;
+    const totalPages = getSceneTotalPages(firstPage);
+    const pageRequests = [];
+    for (let pageNum = 2; pageNum <= totalPages; pageNum++) {
+      pageRequests.push(this.getLegacySceneListPage(pageNum));
+    }
+    const remainingPages = pageRequests.length ? await Promise.all(pageRequests) : [];
+    const sceneMap = new Map();
+    for (const response of [firstPage, ...remainingPages]) {
+      for (const scene of getSceneListItems(response)) sceneMap.set(String(scene.id), scene);
+    }
+    const scenes = [...sceneMap.values()];
+    $.log("✅ 场景列表: " + scenes.length + " 个，共 " + totalPages + " 页");
+    return scenes;
   }
-  async getScenePageInfo(currentSceneId, deployUrl) {
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/getScenePageInfo",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE,
-        'sceneId': currentSceneId
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-  }
-  async getSceneExtInfo(currentSceneId, deployUrl) {
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/getSceneExtInfo",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE,
-        'sceneId': currentSceneId
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-  }
-  async getSceneResourceTemplateInfo(currentSceneId, deployUrl) {
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/getSceneResourceTemplateInfo",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE,
-        'sceneId': currentSceneId,
-        'expMode': "free"
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-  }
-  async checkSceneTokenStatus(deployUrl) {
+  async getLegacySceneDetail(scene) {
     const response = await this.fetch({
-      'url': SCENE_API_BASE + "/checkTokenStatus",
+      'url': SCENE_API_BASE + "/getSceneDetailPageInfoById",
       'type': "get",
       'params': {
-        'aliyun_lang': SCENE_LANGUAGE,
-        'appSite': SCENE_APP_SITE
+        'id': scene.id
       },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-    const received = response?.data?.status === "RECEIVED";
-    if (String(response?.code) !== "200" && !received) {
-      $.log("⛔️ 场景资格检查失败: " + (response?.message || "无响应"));
-      return false;
-    }
-    return true;
-  }
-  async getSkillBuilderUserInfo(deployUrl) {
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/getUserInfo",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-  }
-  async getSkillBuilderUserToken(deployUrl) {
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/getUserToken",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE,
-        'appSite': SCENE_APP_SITE
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-  }
-  async listExperienceRecords(currentSceneId, deployUrl) {
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/listExperienceRecord",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE,
-        'sceneId': currentSceneId,
-        'appSite': SCENE_APP_SITE,
-        'pageNum': 1,
-        'pageSize': SCENE_LIST_PAGE_SIZE,
-        'inExperiencing': 1,
-        'expMode': "free"
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-  }
-  async waitForExperienceRecord(currentSceneId, deployUrl) {
-    for (let attempt = 0; attempt < SCENE_RECORD_POLL_ATTEMPTS; attempt++) {
-      const response = await this.listExperienceRecords(currentSceneId, deployUrl);
-      const record = findActiveExperienceRecord(response, currentSceneId);
-      if (record?.id) {
-        $.log("✅ 已获取动态体验记录");
-        return record;
+      'headers': {
+        'Cookie': this.token,
+        'Referer': "https://developer.aliyun.com/adc/scenario/" + scene.id,
+        'User-Agent': this.headers["User-Agent"]
       }
-      const experienceResponse = await this.getUserSceneExperienceInfo(currentSceneId, null, deployUrl);
-      const currentRecord = getCurrentExperienceRecord(experienceResponse, currentSceneId);
-      if (currentRecord?.id) {
-        $.log("✅ 已从当前体验状态获取动态记录");
-        return currentRecord;
-      }
-      if (attempt + 1 < SCENE_RECORD_POLL_ATTEMPTS) await this.sceneWait(SCENE_POLL_INTERVAL_MS);
+    });
+    if (String(response?.code) !== "200" || !response?.data) {
+      return { state: "unknown", response };
     }
-    return null;
+    const buttonCode = String(response?.data?.developerAdcExperienceStatusVO?.buttonCode || "");
+    if (buttonCode === "1") return { state: "available", response };
+    if (buttonCode) return { state: "completed", response };
+    return { state: "unknown", response };
   }
-  async getUserSceneExperienceInfo(currentSceneId, recordId, deployUrl) {
-    const params = {
-      'aliyun_lang': SCENE_LANGUAGE,
-      'sceneId': currentSceneId
+  async getLegacySceneStartInfo(scene) {
+    const response = await this.fetch({
+      'url': SCENE_API_BASE + "/getSceneStartPageInfoById",
+      'type': "get",
+      'params': {
+        'id': scene.id
+      },
+      'headers': {
+        'Cookie': this.token,
+        'Referer': "https://developer.aliyun.com/adc/scenario/exp/" + scene.id,
+        'User-Agent': this.headers["User-Agent"]
+      }
+    });
+    if (String(response?.code) !== "200" || !response?.data) return null;
+    const rawResourceFrom = response.data.resourceFrom;
+    const resourceSources = Array.isArray(rawResourceFrom)
+      ? rawResourceFrom.map(String)
+      : String(rawResourceFrom || "").split(/[,|]/).map((item) => item.trim()).filter(Boolean);
+    const resourceFrom = resourceSources.includes("2")
+      ? "2"
+      : resourceSources.includes("1") ? "1" : "";
+    return {
+      resourceFrom,
+      sectionId: response?.data?.resourceCardInfoDTOList?.[0]?.id || "",
+      ip: response?.data?.ip || "",
+      response
     };
-    if (recordId) params.recordId = recordId;
-    params.expMode = "free";
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/getUserSceneExperienceInfo",
-      'type': "get",
-      'params': params,
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
   }
-  async getExperienceInfo(recordId, deployUrl) {
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/getExperienceInfo",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE,
-        'recordId': recordId
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
+  buildLegacySceneActionHeaders(sceneId, csrfToken) {
+    return {
+      'Host': "developer.aliyun.com",
+      'H_csrf': csrfToken,
+      'X-XSRF-TOKEN': csrfToken,
+      'User-Agent': this.headers["User-Agent"],
+      'Cookie': this.token,
+      'Referer': "https://developer.aliyun.com/adc/scenario/exp/" + sceneId
+    };
   }
-  async getDeployProcess(currentSceneId, recordId, deployUrl) {
-    return await this.fetch({
-      'url': SCENE_API_BASE + "/getDeployProcess",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE,
-        'sceneId': currentSceneId,
-        'recordId': recordId
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-  }
-  async waitForDeployProcess(currentSceneId, recordId, deployUrl) {
-    for (let attempt = 0; attempt < SCENE_DEPLOY_POLL_ATTEMPTS; attempt++) {
-      const response = await this.getDeployProcess(currentSceneId, recordId, deployUrl);
-      const state = classifyDeployProcess(response?.data);
-      if (state === "ready") {
-        $.log("✅ 场景资源创建完成");
-        return state;
-      }
-      if (state === "failed") {
-        const errorInfo = response?.data?.errorInfo || {};
-        $.log("⛔️ 场景资源创建失败: " + (errorInfo.code || response?.data?.createStatus || "UNKNOWN") + " " + (errorInfo.message || ""));
-        return state;
-      }
-      if (attempt + 1 < SCENE_DEPLOY_POLL_ATTEMPTS) await this.sceneWait(SCENE_POLL_INTERVAL_MS);
-    }
-    $.log("⛔️ 等待场景资源创建超时");
-    return "timeout";
-  }
-  async getSceneCsrfToken(deployUrl) {
+  async startLegacyScene(scene, resourceFrom, csrfToken) {
     const response = await this.fetch({
-      'url': "https://developer.aliyun.com/csrfToken",
-      'type': "get",
-      'params': {
-        'aliyun_lang': SCENE_LANGUAGE
-      },
-      'headers': this.buildSceneHeaders(deployUrl)
-    });
-    const responseToken = response?.token || "";
-    const cookieToken = readCookieValue(this.token, "c_csrf");
-    if (response?.parameterName && response.parameterName !== "p_csrf") {
-      $.log("⛔️ 当前 CSRF 参数名不受支持");
-      return "";
-    }
-    return responseToken || cookieToken;
-  }
-  async stopExperienceByRecordId(recordId, deployUrl) {
-    const csrfToken = await this.getSceneCsrfToken(deployUrl);
-    if (!csrfToken) {
-      $.log("⛔️ 获取场景 CSRF 失败");
-      return false;
-    }
-    const referer = deployUrl + "?recordId=" + encodeURIComponent(recordId) + "&mode=free";
-    const response = await this.fetch({
-      'url': SCENE_API_BASE + "/stopExperienceByRecordId",
+      'url': SCENE_API_BASE + "/startSceneById",
       'type': "post",
       'dataType': "form",
       'params': {
-        'p_csrf': csrfToken,
-        'aliyun_lang': SCENE_LANGUAGE
+        'p_csrf': csrfToken
       },
       'body': {
-        'recordId': recordId
+        'id': scene.id,
+        'resourceFrom': resourceFrom
       },
-      'headers': this.buildSceneHeaders(referer, {
-        'Content-Type': "application/x-www-form-urlencoded;charset=UTF-8"
-      })
+      'headers': this.buildLegacySceneActionHeaders(scene.id, csrfToken)
     });
-    const stopped = String(response?.code) === "200" && response?.success === true && response?.data === true;
-    $.log((stopped ? "✅" : "⛔️") + " 结束场景: " + (response?.message || "无响应"));
-    return stopped;
+    return {
+      ok: String(response?.code) === "200" && response?.success !== false,
+      message: response?.message || "无响应",
+      response
+    };
+  }
+  async closeLegacyScene(scene, csrfToken) {
+    const response = await this.fetch({
+      'url': SCENE_API_BASE + "/closeSceneById",
+      'type': "post",
+      'dataType': "form",
+      'params': {
+        'p_csrf': csrfToken
+      },
+      'body': {
+        'sceneId': scene.id,
+        'forceClose': "true"
+      },
+      'headers': this.buildLegacySceneActionHeaders(scene.id, csrfToken)
+    });
+    return {
+      ok: String(response?.code) === "200" && response?.success !== false,
+      message: response?.message || "无响应",
+      response
+    };
+  }
+  async doScene() {
+    const csrfToken = readCookieValue(this.token, "c_csrf");
+    if (!csrfToken) {
+      $.log("⛔️ 场景任务缺少 c_csrf，请重新获取 CK");
+      return false;
+    }
+    const scenes = await this.getLegacySceneCatalog();
+    if (!scenes.length) return false;
+
+    const historyContext = this.loadSceneHistoryContext();
+    let localSkipped = 0;
+    const candidates = [];
+    for (const scene of scenes) {
+      const historyEntry = historyContext.bucket[String(scene.id)];
+      if (shouldSkipSceneHistoryEntry(historyEntry)) {
+        localSkipped++;
+      } else {
+        candidates.push(scene);
+      }
+    }
+
+    if (!candidates.length) {
+      $.log("✅ 场景库中的任务均已记录完成，本次跳过 " + localSkipped + " 个");
+      return false;
+    }
+
+    let serverCompleted = 0;
+    let unsupported = 0;
+    let temporaryFailed = 0;
+    const attempts = shuffleSceneCandidates(candidates).slice(0, SCENE_MAX_ATTEMPTS);
+    for (const scene of attempts) {
+      const detail = await this.getLegacySceneDetail(scene);
+      if (detail.state === "completed") {
+        markSceneHistoryEntry(historyContext.history, historyContext.accountKey, scene, "server_completed");
+        serverCompleted++;
+        continue;
+      }
+      if (detail.state !== "available") {
+        markSceneHistoryEntry(historyContext.history, historyContext.accountKey, scene, "failed");
+        temporaryFailed++;
+        continue;
+      }
+
+      const startInfo = await this.getLegacySceneStartInfo(scene);
+      if (!startInfo) {
+        markSceneHistoryEntry(historyContext.history, historyContext.accountKey, scene, "failed");
+        temporaryFailed++;
+        continue;
+      }
+      if (startInfo.resourceFrom !== "2") {
+        markSceneHistoryEntry(historyContext.history, historyContext.accountKey, scene, "unsupported");
+        unsupported++;
+        continue;
+      }
+
+      $.log("🚀 开始场景: " + (scene.name || "未命名场景"));
+      const startResult = await this.startLegacyScene(scene, startInfo.resourceFrom, csrfToken);
+      if (!startResult.ok) {
+        markSceneHistoryEntry(historyContext.history, historyContext.accountKey, scene, "failed");
+        temporaryFailed++;
+        $.log("⛔️ 场景启动失败: " + startResult.message);
+        continue;
+      }
+
+      await $.wait(1000);
+      const closeResult = await this.closeLegacyScene(scene, csrfToken);
+      markSceneHistoryEntry(historyContext.history, historyContext.accountKey, scene, "completed");
+      this.saveSceneHistoryContext(historyContext);
+      $.log("✅ 场景任务完成: " + (scene.name || "未命名场景"));
+      if (!closeResult.ok) $.log("⚠️ 场景已完成，但结束请求失败: " + closeResult.message);
+      $.log("ℹ️ 场景筛选: 本地记录 " + localSkipped + "，服务端已完成 " + serverCompleted + "，不兼容 " + unsupported + "，临时失败 " + temporaryFailed);
+      return true;
+    }
+
+    this.saveSceneHistoryContext(historyContext);
+    $.log("⛔️ 本次未找到可启动场景");
+    $.log("ℹ️ 场景筛选: 本地记录 " + localSkipped + "，服务端已完成 " + serverCompleted + "，不兼容 " + unsupported + "，临时失败 " + temporaryFailed);
+    return false;
   }
   async getVideoDetail(liveId) {
 
@@ -1514,10 +1467,13 @@ async function loadCheerio() {
 if (SCENE_TEST_MODE && typeof module !== "undefined") {
   module.exports = {
     readCookieValue,
-    selectSceneCandidates,
-    findActiveExperienceRecord,
-    getCurrentExperienceRecord,
-    classifyDeployProcess,
+    getSceneListItems,
+    getSceneTotalPages,
+    getSceneAccountKey,
+    parseSceneHistory,
+    getSceneHistoryBucket,
+    shouldSkipSceneHistoryEntry,
+    markSceneHistoryEntry,
     UserInfo
   };
 } else {
