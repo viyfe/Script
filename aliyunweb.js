@@ -1145,7 +1145,7 @@ class UserInfo {
     }
   }
   async playVideo() {
-    const liveId = "25508";
+    const liveId = "255082";
     const sessionId = getSessionId(this.token, liveId);
     const {
       videoName,
