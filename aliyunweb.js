@@ -227,6 +227,37 @@ function markSceneHistoryEntry(history, accountKey, scene, status, now = Date.no
   }
   return normalizedHistory;
 }
+
+function parseTaskActions(taskList, now = Date.now()) {
+  if (!Array.isArray(taskList)) return [];
+  const actions = [];
+  const seen = new Set();
+  for (const taskDefinition of taskList) {
+    const startTime = Number(taskDefinition?.gmtEnableStart) || 0;
+    const endTime = Number(taskDefinition?.gmtEnableEnd) || Number.MAX_SAFE_INTEGER;
+    if (now < startTime || now > endTime) continue;
+    let finishRule = taskDefinition?.finishRule;
+    try {
+      if (typeof finishRule === "string") {
+        finishRule = JSON.parse(finishRule.replace(/&quot;/g, '"'));
+      }
+    } catch {
+      continue;
+    }
+    for (const action of finishRule?.actions || []) {
+      if (!action?.actionCode || action?.objectId == null) continue;
+      const key = String(action.actionCode) + "\u0000" + String(action.objectId);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      actions.push({
+        actionCode: action.actionCode,
+        activityCode: action.activityCode || action.actionCode,
+        objectId: action.objectId
+      });
+    }
+  }
+  return actions;
+}
 async function main() {
   try {
     $.log("\n================== 任务 ==================\n");
@@ -240,10 +271,12 @@ async function main() {
       if (account.ckStatus) {
         const cutoff = new Date(new Date().setHours(Math.floor(controlTime), 0, 0, 0)).getTime();
         if (now < cutoff) {
+          await account.completeDailyLogin();
+          await $.wait(account.getRandomTime());
           for (const group of taskGroup) {
             const signInGroupId = await account.getUserSpaceSignInDetail(group.code);
-            const signInTask = await account.getTasks(signInGroupId);
-            await account.signin(signInTask, group.name);
+            const signInTasks = await account.getTasks(signInGroupId);
+            await account.signin(signInTasks, group.name);
             await $.wait(account.getRandomTime());
 
             const bonusAvailable = await account.assessSignInBonusQualification(signInGroupId, group.name);
@@ -391,15 +424,20 @@ class UserInfo {
       }
     };
   }
-  async getUser() {
+  async completeDailyLogin() {
     try {
       const requestOptions = {
         'url': "/my/user/getUser",
         'type': "get"
       };
-      await this.fetch(requestOptions);
+      const response = await this.fetch(requestOptions);
+      const completed = String(response?.code) === "200" && response?.success !== false;
+      $.log((completed ? "✅" : "⛔️") + " 每日登录: " + (response?.message || (completed ? "请求成功" : "请求失败")));
+      return completed;
     } catch (error) {
-      this.ckStatus = false, $.log("⛔️ 获取签到任务列表失败! " + error);
+      this.ckStatus = false;
+      $.log("⛔️ 每日登录失败! " + error);
+      return false;
     }
   }
   async assessSignInBonusQualification(taskGroupId, groupName) {
@@ -457,7 +495,7 @@ class UserInfo {
   }
   async getTasks(groupId) {
 
-    if (!groupId) return null;
+    if (!groupId) return [];
     try {
       const requestOptions = {
         'url': "/task/getTaskGroup?groupId=" + groupId,
@@ -465,39 +503,38 @@ class UserInfo {
       };
       let response = await this.fetch(requestOptions);
       const taskList = response?.data?.taskList;
-      let taskAction = {};
-      if (taskList.length) {
-        const now = new Date().getTime();
-        for (let taskDefinition of taskList) {
-          if (now >= taskDefinition.gmtEnableStart && now <= taskDefinition.gmtEnableEnd) {
-            const finishRule = JSON.parse(taskDefinition.finishRule.replace(/&quot;/g, '\x22'));
-            taskAction.actionCode = finishRule.actions[0].actionCode, taskAction.activityCode = finishRule.actions[0].actionCode, taskAction.objectId = finishRule.actions[0].objectId;
-          }
-        }
-      }
-      return taskAction;
+      return parseTaskActions(taskList);
     } catch (error) {
-      this.ckStatus = false, $.log("⛔️ 获取签到任务列表失败! " + error);
+      this.ckStatus = false;
+      $.log("⛔️ 获取签到任务列表失败! " + error);
+      return [];
     }
   }
-  async signin(task, groupName) {
+  async signin(tasks, groupName) {
 
-    if (!task) {
+    if (!Array.isArray(tasks) || !tasks.length) {
       $.log('✅\x20签到\x20-\x20' + (groupName || "default") + ": 该社区无签到任务");
-      return;
+      return 0;
     }
-    try {
-      const requestOptions = {
-        'url': "/task/actionLog",
-        'type': "post",
-        'dataType': "form",
-        'body': task
-      };
-      let response = await this.fetch(requestOptions);
-      $.log("✅ 签到 - " + (groupName || "default") + ':\x20' + response?.message);
-    } catch (error) {
-      this.ckStatus = false, $.log("⛔️ 签到失败! " + error);
+    let completedCount = 0;
+    for (const task of tasks) {
+      try {
+        const requestOptions = {
+          'url': "/task/actionLog",
+          'type': "post",
+          'dataType': "form",
+          'body': task
+        };
+        const response = await this.fetch(requestOptions);
+        const completed = String(response?.code) === "200" && response?.success !== false;
+        if (completed) completedCount++;
+        $.log((completed ? "✅" : "⛔️") + " 签到 - " + (groupName || "default") + ':\x20' + (response?.message || "无响应"));
+      } catch (error) {
+        this.ckStatus = false;
+        $.log("⛔️ 签到失败! " + error);
+      }
     }
+    return completedCount;
   }
   async getArticles() {
     try {
@@ -1108,7 +1145,7 @@ class UserInfo {
     }
   }
   async playVideo() {
-    const liveId = "255082";
+    const liveId = "25508";
     const sessionId = getSessionId(this.token, liveId);
     const {
       videoName,
@@ -1474,6 +1511,7 @@ if (SCENE_TEST_MODE && typeof module !== "undefined") {
     getSceneHistoryBucket,
     shouldSkipSceneHistoryEntry,
     markSceneHistoryEntry,
+    parseTaskActions,
     UserInfo
   };
 } else {
