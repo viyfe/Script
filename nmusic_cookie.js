@@ -13,12 +13,21 @@
  * 关键点：context.cookies() 返回的是浏览器**整个域的 Cookie 罐**，
  * 也就是所有响应 Set-Cookie 累积下来的并集，不是某一次请求带的那一份。
  *
- * 而 MITM 只能看到**单次请求**的 Cookie 头，它只是那个罐的子集：
- *   · APP 原生接口(eapi)请求：带 MUSIC_U / os / appver / deviceId / NMTID，
- *     但通常**不带 __csrf**（__csrf 是网页 XSRF 用的字段）
- *     host 形如 interface.music.163.com / interface3.music.163.com
- *   · APP 内嵌网页(H5)请求：带 MUSIC_U + __csrf
- *     host 是**裸 music.163.com**（没有子域）
+ * 而 MITM 只能看到**单次请求**的 Cookie 头，它只是那个罐的子集。
+ *
+ * 【2026-08-13 实测修正】拿真机 HAR 核对过（384 条记录，其中 164 条打
+ * music.163.com），我原先「APP 原生请求不带 __csrf」的推测是**错的**：
+ *   · 161 条带 MUSIC_U 的请求，**161 条同时带 __csrf**，一条不少
+ *   · APP 的 Cookie 是完整 27 个字段：MUSIC_U / __csrf / deviceId /
+ *     sDeviceId / os / osver / appver / channel / NMTID / WNMCID / ...
+ *   · host 主要是 interface3.music.163.com（占 140 条），路径前缀是
+ *     /xeapi/ 与 /eapi/，全部 HTTP/1.1（不是 QUIC，圈X 能改写）
+ * 也就是说随便抓到一条登录态请求，Cookie 就是齐的，不需要跨请求凑。
+ *
+ * 那还要不要合并？要，但它的作用降级为「保险」而非「必需」：
+ *   · 万一某条请求的 Cookie 被 APP 截短，不会把已存的好 Cookie 覆盖坏
+ *   · 退出登录时 APP 发 MUSIC_U=（空值），不会把罐洗空
+ * 单请求整串覆盖在正常情况下同样能work，合并只是更耐操。
  *
  * 所以重写规则的 host 部分必须写成 [\w.-]*music\.163\.com —— 子域可有可无。
  * 写成 [\w-]+\.music\.163\.com（强制要有子域）会把裸 music.163.com 排除掉，
@@ -28,10 +37,10 @@
  * 公开文档说明支持哪些语法，万一不支持，规则会**静默不命中**（不报错、没日志），
  * 排查起来和「证书没装好」一模一样。[\w.-]* 只用基础字符类，风险最低。
  *
- * 旧版把「最后看到的那一份」整串覆盖写入，所以存进去的经常缺字段：
- * 抓到 eapi 请求 → 存的 CK 里没有 __csrf → task.js 的 formatCookie 取不到
- * csrfToken → 所有请求带着 csrf_token=undefined 发出去。
- * 这就是「抓到了 Cookie 但任务还是不动」的根因。
+ * 旧版还有个真问题：写入是**一次性**的
+ *   if (!$.getdata("Netease_Musician_Cookie") || ... == "") { ...写入... }
+ * 已经有值就再也不更新。所以 Cookie 一旦过期就永远过期，这是原版在圈X 上
+ * 「跑一阵就不动了」的根因。本版允许覆盖更新，APP 自己刷新 Cookie 时会跟着更新。
  *
  * 本版改成和 Docker 一样维护一个**字段罐**：把每次看到的 Cookie 头拆成字段，
  * 按字段名合并进已存的罐，同名取新值，再序列化回 "k=v; k=v"。
