@@ -1,77 +1,23 @@
 /**************************************
- * 脚本名称：网易云音乐人
- * 脚本作者：@leiyiyan
- * 更新日期：2024-01-31 16:12:00
- ============== 注意事项 =================
- 1、打开“网易云音乐”APP，点击左上角菜单，打开“创作者中心”，进入音乐人中心，点击下方“云豆商城”右侧的“xxx云豆待使用”，
-    再次点击上方的“收支记录”，进入收支记录页面后等待抓取Cookie，提示获取成功即可；
- 2、如果需要完成“回复粉丝私信”任务：
-    一：在Boxjs或者Loon的插件中填写粉丝ID，粉丝ID可在APP粉丝详情页面右上角分享链接获取（强烈推荐）；
-    二、请确保您当前拥有粉丝，并且私信列表中存在粉丝的私信，最后务必将粉丝的备注修改为“回复粉丝私信”。
-    以上两个方案选择一个即可。
- 3、当前版本支持以下任务:
-    云贝: 签到；
-    音乐人: 每日任务、推荐任务(发表主创说、发布动态、回复粉丝私信)，完成以上任务后可自动领取云豆；
-    黑胶会员: 会员打卡、每日任务(♥️三首会员歌曲)，完成以上任务后可自动领取成长值。
- ============== 使用教程 =================
- 脚本兼容：Surge、QuantumultX、Loon、Node.js、青龙面板，其它环境请自行尝试。
- ----------------------------------------
- Boxjs订阅链接：
- https://raw.githubusercontent.com/leiyiyan/resource/main/subscribe/leiyiyan.boxjs.json
- ----------------------------------------
- Loon 配置如下：
- 自动导入：
- https://raw.githubusercontent.com/leiyiyan/resource/main/loon/plugin/netease_musician/netease_musician.plugin
-
- 手动导入：
- [Script]
- # 音乐人任务（默认0点10分执行，如需更改请自行修改corn表达式）
- cron "10 0 * * *" script-path=https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js, tag=音乐人任务
-
- # 获取Cookie
- http-request ^https?:\/\/music\.163\.com\/weapi\/cloudbean\/records\/incomes script-path = https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/cookie.js, tag = 获取Cookie
-
- [MitM]
- hostname = music.163.com
- ----------------------------------------
- QuantumultX 配置如下：
-
- [task_local]
- 0 10 * * * https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js, tag=网易云音乐人, img-url=https://raw.githubusercontent.com/leiyiyan/resource/main/icons/netease_music.png, enabled=true
-
- [rewrite_local]
- ^https?:\/\/music\.163\.com\/weapi\/cloudbean\/records\/incomes url script-request-body https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/cookie.js
-
- [MITM]
- hostname = music.163.com
- ----------------------------------------
- 🐉 青龙面板配置如下：
-
-  1 点击“订阅管理“-“创建订阅“，按照以下格式填入订阅链接；
-    名称：网易云音乐
-    类型：单文件
-    链接：https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js
-    定时类型：crontab
-    定时规则：10 0 * * *
-  2 创建完毕后，点击 ”运行”，查看“日志”，确认脚本下载成功，并自动导入到“定时任务”中（注意：如果下载失败，请开启代理
-    后再 次点击“运行”）；
-  3 点击“环境变量”，按照以下格式创建变量：
-    Netease_Musician_Cookie: 抓取到的 Cookie
-    Netease_Musician_UserAgent: 抓取到的 User-Agent
-    Netease_Musician_FansId: 粉丝ID
-    Netease_Musician_Enable_Cloud_Shell_Task: 开启云贝任务（true/false）
-    Netease_Musician_Enable_Musician_Task: 开启音乐人任务（true/false）
-    Netease_Musician_Enable_Vip_Task: 开启会员任务（true/false）
-  4 点击“定时任务”，修改刚刚导入的脚本名称为“网易云音乐”，点击“运行”，查看“日志”，确认是否运行成功。
-
- ============== 使用须知 =================
- 1、此脚本仅用于学习研究，不保证其合法性、准确性、有效性，请根据情况自行判断，本人对此不承担任何保证责任。
- 2、由于此脚本仅用于学习研究，您必须在下载后 24 小时内将所有内容从您的计算机或手机或任何存储设备中完全删除，若违反规定引起任何事件本人对此均不负责。
- 3、请勿将此脚本用于任何商业或非法目的，若违反规定请自行对此负责。
- 4、此脚本涉及应用与本人无关，本人对因此引起的任何隐私泄漏或其他后果不承担任何责任。
- 5、本人对任何脚本引发的问题概不负责，包括但不限于由脚本错误引起的任何损失和损害。
- 6、如果任何单位或个人认为此脚本可能涉嫌侵犯其权利，应及时通知并提供身份证明，所有权证明，我们将在收到认证文件确认后删除此脚本。
- 7、所有直接或间接使用、查看此脚本的人均应该仔细阅读此声明。本人保留随时更改或补充此声明的权利。一旦您使用或复制了此脚本，即视为您已接受此免责声明。
+ * ⚠️ 抓 Cookie 的重写规则请以 cookie.js 头部为准
+ *
+ * 下面「使用教程」里的重写规则是原作者 2024-01-31 写的窄匹配：
+ *     music.163.com/weapi/cloudbean/records/incomes
+ * 网易云 APP 此后更新了两年多，该地址可能已不再被请求。规则不命中 =
+ * 脚本一次都不执行 = 彻底没反应。cookie.js 已改为广匹配 + 首次命中心跳，
+ * 请按 cookie.js 头部的配置来；本文件下方的 http-request / rewrite_local
+ * 两行仅作原版留档，不要照抄。
+ *
+ * 本文件是原作者脚本的解混淆明码版（jsjiami.com.v7 已还原）：
+ *   · 加密函数输出与原版逐字节一致（smoke_test.js 18/18 通过）
+ *   · 业务流程未改动，只加了原版缺失的错误处理：
+ *       - 入口校验 MUSIC_U，没抓到 Cookie 就提示并正常退出；缺 __csrf 则
+ *         自造一个随机 csrf_token（对齐 Docker 项目 core.py:255-260）
+ *       - 30 个 new Promise(async ...) 执行器各自 try/catch（原版抛异常会
+ *         导致外层 promise 永不 settle + unhandled rejection，表现为静默死掉）
+ *       - 收尾通知校验云豆数，拉不到就报「任务未完成」而不是「NaN 颗」
+ *       - 修了一处上游 bug（见「修正上游 bug」注释）
+ *   · task.js 是定时任务，自己发请求，不需要 MITM
  ******************************************/
 
 /**************************************
@@ -149,158 +95,9 @@
  6、如果任何单位或个人认为此脚本可能涉嫌侵犯其权利，应及时通知并提供身份证明，所有权证明，我们将在收到认证文件确认后删除此脚本。
  7、所有直接或间接使用、查看此脚本的人均应该仔细阅读此声明。本人保留随时更改或补充此声明的权利。一旦您使用或复制了此脚本，即视为您已接受此免责声明。
  ******************************************/
+
 
 /* ===== 区段 1 / 3：业务逻辑与加密实现 ===== */
-/**************************************
- * 脚本名称：网易云音乐人
- * 脚本作者：@leiyiyan
- * 更新日期：2024-01-31 16:12:00
- ============== 注意事项 =================
- 1、打开“网易云音乐”APP，点击左上角菜单，打开“创作者中心”，进入音乐人中心，点击下方“云豆商城”右侧的“xxx云豆待使用”，
-    再次点击上方的“收支记录”，进入收支记录页面后等待抓取Cookie，提示获取成功即可；
- 2、如果需要完成“回复粉丝私信”任务：
-    一：在Boxjs或者Loon的插件中填写粉丝ID，粉丝ID可在APP粉丝详情页面右上角分享链接获取（强烈推荐）；
-    二、请确保您当前拥有粉丝，并且私信列表中存在粉丝的私信，最后务必将粉丝的备注修改为“回复粉丝私信”。
-    以上两个方案选择一个即可。
- 3、当前版本支持以下任务:
-    云贝: 签到；
-    音乐人: 每日任务、推荐任务(发表主创说、发布动态、回复粉丝私信)，完成以上任务后可自动领取云豆；
-    黑胶会员: 会员打卡、每日任务(♥️三首会员歌曲)，完成以上任务后可自动领取成长值。
- ============== 使用教程 =================
- 脚本兼容：Surge、QuantumultX、Loon、Node.js、青龙面板，其它环境请自行尝试。
- ----------------------------------------
- Boxjs订阅链接：
- https://raw.githubusercontent.com/leiyiyan/resource/main/subscribe/leiyiyan.boxjs.json
- ----------------------------------------
- Loon 配置如下：
- 自动导入：
- https://raw.githubusercontent.com/leiyiyan/resource/main/loon/plugin/netease_musician/netease_musician.plugin
-
- 手动导入：
- [Script]
- # 音乐人任务（默认0点10分执行，如需更改请自行修改corn表达式）
- cron "10 0 * * *" script-path=https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js, tag=音乐人任务
-
- # 获取Cookie
- http-request ^https?:\/\/music\.163\.com\/weapi\/cloudbean\/records\/incomes script-path = https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/cookie.js, tag = 获取Cookie
-
- [MitM]
- hostname = music.163.com
- ----------------------------------------
- QuantumultX 配置如下：
-
- [task_local]
- 0 10 * * * https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js, tag=网易云音乐人, img-url=https://raw.githubusercontent.com/leiyiyan/resource/main/icons/netease_music.png, enabled=true
-
- [rewrite_local]
- ^https?:\/\/music\.163\.com\/weapi\/cloudbean\/records\/incomes url script-request-body https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/cookie.js
-
- [MITM]
- hostname = music.163.com
- ----------------------------------------
- 🐉 青龙面板配置如下：
-
-  1 点击“订阅管理“-“创建订阅“，按照以下格式填入订阅链接；
-    名称：网易云音乐
-    类型：单文件
-    链接：https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js
-    定时类型：crontab
-    定时规则：10 0 * * *
-  2 创建完毕后，点击 ”运行”，查看“日志”，确认脚本下载成功，并自动导入到“定时任务”中（注意：如果下载失败，请开启代理
-    后再 次点击“运行”）；
-  3 点击“环境变量”，按照以下格式创建变量：
-    Netease_Musician_Cookie: 抓取到的 Cookie
-    Netease_Musician_UserAgent: 抓取到的 User-Agent
-    Netease_Musician_FansId: 粉丝ID
-    Netease_Musician_Enable_Cloud_Shell_Task: 开启云贝任务（true/false）
-    Netease_Musician_Enable_Musician_Task: 开启音乐人任务（true/false）
-    Netease_Musician_Enable_Vip_Task: 开启会员任务（true/false）
-  4 点击“定时任务”，修改刚刚导入的脚本名称为“网易云音乐”，点击“运行”，查看“日志”，确认是否运行成功。
-
- ============== 使用须知 =================
- 1、此脚本仅用于学习研究，不保证其合法性、准确性、有效性，请根据情况自行判断，本人对此不承担任何保证责任。
- 2、由于此脚本仅用于学习研究，您必须在下载后 24 小时内将所有内容从您的计算机或手机或任何存储设备中完全删除，若违反规定引起任何事件本人对此均不负责。
- 3、请勿将此脚本用于任何商业或非法目的，若违反规定请自行对此负责。
- 4、此脚本涉及应用与本人无关，本人对因此引起的任何隐私泄漏或其他后果不承担任何责任。
- 5、本人对任何脚本引发的问题概不负责，包括但不限于由脚本错误引起的任何损失和损害。
- 6、如果任何单位或个人认为此脚本可能涉嫌侵犯其权利，应及时通知并提供身份证明，所有权证明，我们将在收到认证文件确认后删除此脚本。
- 7、所有直接或间接使用、查看此脚本的人均应该仔细阅读此声明。本人保留随时更改或补充此声明的权利。一旦您使用或复制了此脚本，即视为您已接受此免责声明。
- ******************************************/
-/**************************************
- * 脚本名称：网易云音乐人
- * 脚本作者：@leiyiyan
- * 更新日期：2024-01-31 16:12:00
- ============== 注意事项 =================
- 1、打开“网易云音乐”APP，点击左上角菜单，打开“创作者中心”，进入音乐人中心，点击下方“云豆商城”右侧的“xxx云豆待使用”，
-    再次点击上方的“收支记录”，进入收支记录页面后等待抓取Cookie，提示获取成功即可；
- 2、如果需要完成“回复粉丝私信”任务：
-    一：在Boxjs或者Loon的插件中填写粉丝ID，粉丝ID可在APP粉丝详情页面右上角分享链接获取（强烈推荐）；
-    二、请确保您当前拥有粉丝，并且私信列表中存在粉丝的私信，最后务必将粉丝的备注修改为“回复粉丝私信”。
-    以上两个方案选择一个即可。
- 3、当前版本支持以下任务:
-    云贝: 签到；
-    音乐人: 每日任务、推荐任务(发表主创说、发布动态、回复粉丝私信)，完成以上任务后可自动领取云豆；
-    黑胶会员: 会员打卡、每日任务(♥️三首会员歌曲)，完成以上任务后可自动领取成长值。
- ============== 使用教程 =================
- 脚本兼容：Surge、QuantumultX、Loon、Node.js、青龙面板，其它环境请自行尝试。
- ----------------------------------------
- Boxjs订阅链接：
- https://raw.githubusercontent.com/leiyiyan/resource/main/subscribe/leiyiyan.boxjs.json
- ----------------------------------------
- Loon 配置如下：
- 自动导入：
- https://raw.githubusercontent.com/leiyiyan/resource/main/loon/plugin/netease_musician/netease_musician.plugin
-
- 手动导入：
- [Script]
- # 音乐人任务（默认0点10分执行，如需更改请自行修改corn表达式）
- cron "10 0 * * *" script-path=https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js, tag=音乐人任务
-
- # 获取Cookie
- http-request ^https?:\/\/music\.163\.com\/weapi\/cloudbean\/records\/incomes script-path = https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/cookie.js, tag = 获取Cookie
-
- [MitM]
- hostname = music.163.com
- ----------------------------------------
- QuantumultX 配置如下：
-
- [task_local]
- 0 10 * * * https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js, tag=网易云音乐人, img-url=https://raw.githubusercontent.com/leiyiyan/resource/main/icons/netease_music.png, enabled=true
-
- [rewrite_local]
- ^https?:\/\/music\.163\.com\/weapi\/cloudbean\/records\/incomes url script-request-body https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/cookie.js
-
- [MITM]
- hostname = music.163.com
- ----------------------------------------
- 🐉 青龙面板配置如下：
-
-  1 点击“订阅管理“-“创建订阅“，按照以下格式填入订阅链接；
-    名称：网易云音乐
-    类型：单文件
-    链接：https://raw.githubusercontent.com/leiyiyan/resource/main/script/netease_musician/task.js
-    定时类型：crontab
-    定时规则：10 0 * * *
-  2 创建完毕后，点击 ”运行”，查看“日志”，确认脚本下载成功，并自动导入到“定时任务”中（注意：如果下载失败，请开启代理
-    后再 次点击“运行”）；
-  3 点击“环境变量”，按照以下格式创建变量：
-    Netease_Musician_Cookie: 抓取到的 Cookie
-    Netease_Musician_UserAgent: 抓取到的 User-Agent
-    Netease_Musician_FansId: 粉丝ID
-    Netease_Musician_Enable_Cloud_Shell_Task: 开启云贝任务（true/false）
-    Netease_Musician_Enable_Musician_Task: 开启音乐人任务（true/false）
-    Netease_Musician_Enable_Vip_Task: 开启会员任务（true/false）
-  4 点击“定时任务”，修改刚刚导入的脚本名称为“网易云音乐”，点击“运行”，查看“日志”，确认是否运行成功。
-
- ============== 使用须知 =================
- 1、此脚本仅用于学习研究，不保证其合法性、准确性、有效性，请根据情况自行判断，本人对此不承担任何保证责任。
- 2、由于此脚本仅用于学习研究，您必须在下载后 24 小时内将所有内容从您的计算机或手机或任何存储设备中完全删除，若违反规定引起任何事件本人对此均不负责。
- 3、请勿将此脚本用于任何商业或非法目的，若违反规定请自行对此负责。
- 4、此脚本涉及应用与本人无关，本人对因此引起的任何隐私泄漏或其他后果不承担任何责任。
- 5、本人对任何脚本引发的问题概不负责，包括但不限于由脚本错误引起的任何损失和损害。
- 6、如果任何单位或个人认为此脚本可能涉嫌侵犯其权利，应及时通知并提供身份证明，所有权证明，我们将在收到认证文件确认后删除此脚本。
- 7、所有直接或间接使用、查看此脚本的人均应该仔细阅读此声明。本人保留随时更改或补充此声明的权利。一旦您使用或复制了此脚本，即视为您已接受此免责声明。
- ******************************************/
 const $ = new Env('网易云音乐人');
 $.CryptoJS = initCryptoJS();
 const domain = "https://interface.music.163.com",
@@ -308,8 +105,8 @@ const domain = "https://interface.music.163.com",
   userAgent = $.isNode() ? process.env.Netease_Musician_UserAgent : $.getdata('Netease_Musician_UserAgent'),
   cookie = $.isNode() ? process.env.Netease_Musician_Cookie : $.getdata("Netease_Musician_Cookie"),
   cookieKey = formatCookie(cookie),
-  csrfToken = cookieKey.csrfToken,
   deviceId = cookieKey.deviceId;
+let csrfToken = cookieKey.csrfToken;
 let fansId = $.getdata("Netease_Musician_FansId");
 const isEnableCloudShellTask = checkSelectData($.isLoon() ? '开启云贝任务' : 'Netease_Musician_Enable_Cloud_Shell_Task'),
   isEnableMusicianTask = checkSelectData($.isLoon() ? '开启音乐人任务' : 'Netease_Musician_Enable_Musician_Task'),
@@ -333,104 +130,161 @@ const songs = ["2063864551", '1299550532', '1969822728'],
   eapiKey = 'e82ckenh8dichen8',
   iv = '0102030405060708';
 !(async () => {
-  isEnableCloudShellTask ? await finishCloudShellMissions() : console.log("\n⚠️ 您没有开启云贝任务");
-  if (isEnableVipTask) {
-    {
-      await finishVipMissions();
-    }
-  } else console.log("\n⚠️ 您没有开启会员任务");
-  isEnableMusicianTask ? await finishMusicianMissions() : console.log("\n⚠️ 您没有开启音乐人任务");
-  for (let v1 = 0; v1 < songs.length; v1++) {
-    await handleLikeSong(false, songs[v1]);
+  // 前置校验：没有可用 Cookie 就立刻提示退出，不白跑一轮无效请求 
+  if (!cookie || cookie === "undefined" || cookie === "null" || !/(?:^|;\s*)MUSIC_U=[^;\s]/.test(cookie)) {
+    const why = !cookie || cookie === "undefined" || cookie === "null" ? "存储里没有 Cookie，cookie.js 还没抓到过" : "Cookie 里没有 MUSIC_U（未登录态，抓到的不是登录后的请求）";
+    console.log("\n❌ " + why);
+    $.msg($.name, "Cookie 未配置 ❌", why + "\n请先在圈X [rewrite_local] 里装好 cookie.js，再打开网易云 APP 的音乐人中心页面抓一次。");
+    return $.done();
   }
-  await sendMessage(), $.done();
+  if (!csrfToken) {
+    // 照 core.py:255-260：Cookie 里没有 __csrf 就自造一个随机 csrf_token。
+    // APP 原生请求普遍不带 __csrf，这里不能因此判定 Cookie 不可用。
+    csrfToken = randomCsrfToken();
+    headers.csrf_token = csrfToken;
+    console.log("\n⚠️ Cookie 里没有 __csrf，已自动生成 csrf_token（与 Docker 项目一致，不影响任务）");
+  }
+  // 兜底：任何异常都必须走到 $.done()，否则圈X 侧就是「毫无反应」 
+  try {
+    isEnableCloudShellTask ? await finishCloudShellMissions() : console.log("\n⚠️ 您没有开启云贝任务");
+    if (isEnableVipTask) {
+      {
+        await finishVipMissions();
+      }
+    } else console.log("\n⚠️ 您没有开启会员任务");
+    isEnableMusicianTask ? await finishMusicianMissions() : console.log("\n⚠️ 您没有开启音乐人任务");
+    for (let v1 = 0; v1 < songs.length; v1++) {
+      await handleLikeSong(false, songs[v1]);
+    }
+    await sendMessage(), $.done();
+  } catch (e) {
+    $.logErr(e);
+    $.msg($.name, "运行异常 ❌", "脚本中途出错: " + (e && e.message ? e.message : String(e)) + "\n若反复出现，可能是网易云接口已变更。");
+    $.done();
+  }
 })();
+// 对应 Docker 项目 core.py:144-148：Cookie 缺 __csrf 时自造一个 csrf_token 
+function randomCsrfToken() {
+  let s = "";
+  while (s.length < 32) s += Math.floor(Math.random() * 16).toString(16);
+  return s.slice(0, 32);
+}
 
 function finishCloudShellMissions() {
   return new Promise(async resolve => {
-    {
-      return await dailySign(), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        return await dailySign(), resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ finishCloudShellMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function finishMusicianMissions() {
   return new Promise(async resolve => {
-    const v1 = await getMusicianInfo();
-    if (v1.code != 200) console.log("\n⚠️ 您当前没有具备音乐人资格，无法继续进行后续任务!");
-    else {
-      var v2 = "0|5|6|4|7|3|2|1|8".split('|'),
-        v3 = 0;
-      await getCloudbeanCount();
-      await getUserInfo();
-      await getCycleMissions();
-      await accessMusicianHome();
-      await getStageMissions();
-      await finishMusicianCycleMissions();
-      await $.wait(1000);
-      await getObtainMissions();
-      commentId && (await removeComment(commentId));
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const v1 = await getMusicianInfo();
+      if (v1.code != 200) console.log("\n⚠️ 您当前没有具备音乐人资格，无法继续进行后续任务!");
+      else {
+        var v2 = "0|5|6|4|7|3|2|1|8".split('|'),
+          v3 = 0;
+        await getCloudbeanCount();
+        await getUserInfo();
+        await getCycleMissions();
+        await accessMusicianHome();
+        await getStageMissions();
+        await finishMusicianCycleMissions();
+        await $.wait(1000);
+        await getObtainMissions();
+        commentId && (await removeComment(commentId));
+      }
+      return resolve();
+    } catch (e) {
+      console.log("\n⚠️ finishMusicianMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
-    return resolve();
   });
 }
 
 function finishVipMissions() {
   return new Promise(async resolve => {
-    {
-      var v1 = "6|0|3|7|5|4|1|2".split('|'),
-        v2 = 0;
-      await getVipInfo(!false);
-      await getVipCycleMissions();
-      await vipSign();
-      await finishVipCycleMissions();
-      await $.wait(1000);
-      await receiveVipReward();
-      await getVipInfo(false);
-      return resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        var v1 = "6|0|3|7|5|4|1|2".split('|'),
+          v2 = 0;
+        await getVipInfo(!false);
+        await getVipCycleMissions();
+        await vipSign();
+        await finishVipCycleMissions();
+        await $.wait(1000);
+        await receiveVipReward();
+        await getVipInfo(false);
+        return resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ finishVipMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function getVipInfo(p1) {
   return new Promise(async resolve => {
-    const opts = {
-        'url': domain + '/weapi/vipnewcenter/app/level/growhpoint/basic?csrf_token=' + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({})
-      },
-      res = await weapiRequest(opts);
-    if (res.code == 200 && res.data) {
-      const {
-        userLevel: userLevel
-      } = res.data;
-      if (userLevel.vipType != -1) {
-        if (p1) {
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+          'url': domain + '/weapi/vipnewcenter/app/level/growhpoint/basic?csrf_token=' + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({})
+        },
+        res = await weapiRequest(opts);
+      if (res.code == 200 && res.data) {
+        const {
+          userLevel: userLevel
+        } = res.data;
+        if (userLevel.vipType != -1) {
+          if (p1) {
+            {
+              oldVipScore = userLevel.growthPoint;
+              const v1 = new Date(userLevel.expireTime).toLocaleString().split('\x20')[0];
+              console.log('\x0a-------\x20📢\x20开始获取会员信息\x20-------'), console.log('\x0a💡\x20黑胶会员等级：' + userLevel.levelName + "，有效期至： " + v1 + "，成长值：" + userLevel.growthPoint);
+            }
+          } else newVipScore = userLevel.growthPoint, console.log("\n------- 📢 开始刷新会员信息 -------"), console.log('\x0a💡\x20本次获得成长值:\x20' + (newVipScore - oldVipScore) + " ，您的累积成长值: " + userLevel.growthPoint + "，黑胶会员等级：" + userLevel.levelName);
+        } else {
           {
-            oldVipScore = userLevel.growthPoint;
-            const v1 = new Date(userLevel.expireTime).toLocaleString().split('\x20')[0];
-            console.log('\x0a-------\x20📢\x20开始获取会员信息\x20-------'), console.log('\x0a💡\x20黑胶会员等级：' + userLevel.levelName + "，有效期至： " + v1 + "，成长值：" + userLevel.growthPoint);
+            console.log('\x0a⚠️\x20您当前不是黑胶会员，无法继续完成会员任务!');
           }
-        } else newVipScore = userLevel.growthPoint, console.log("\n------- 📢 开始刷新会员信息 -------"), console.log('\x0a💡\x20本次获得成长值:\x20' + (newVipScore - oldVipScore) + " ，您的累积成长值: " + userLevel.growthPoint + "，黑胶会员等级：" + userLevel.levelName);
-      } else {
-        {
-          console.log('\x0a⚠️\x20您当前不是黑胶会员，无法继续完成会员任务!');
         }
       }
+      return resolve();
+    } catch (e) {
+      console.log("\n⚠️ getVipInfo 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
-    return resolve();
   });
 }
 
 function vipSign() {
   return new Promise(async resolve => {
-    const opts = {
-        'url': domain + "/weapi/vip-center-bff/task/sign?csrf_token=" + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({})
-      },
-      res = await weapiRequest(opts);
-    return res.code == 200 && res.data && console.log("\n✅ 会员签到: 已完成"), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+          'url': domain + "/weapi/vip-center-bff/task/sign?csrf_token=" + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({})
+        },
+        res = await weapiRequest(opts);
+      return res.code == 200 && res.data && console.log("\n✅ 会员签到: 已完成"), resolve();
+    } catch (e) {
+      console.log("\n⚠️ vipSign 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
+    }
   });
 }
 
@@ -456,164 +310,212 @@ function getVipCycleMissions() {
     'cnwFA': "红心3首会员单曲"
   };
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + '/weapi/middle/vip/mission/user/progress/list?csrf_token=' + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({})
-        },
-        res = await weapiRequest(opts);
-      if (res.code == 200 && res.data) {
-        const v12 = res.data;
-        if (v12.length) {
-          console.log("\n------- 🚀 开始获取会员每日任务 -------");
-          for (let v13 of v12) {
-            let v14 = {};
-            if (v13.basicMissionDTO.name == "红心3首会员单曲") switch (v13.stageProgressDTOS[0].stageStatus) {
-              case 0:
-                console.log("\n❌ " + v13.basicMissionDTO.name + ":  未完成"), v14 = {
-                  'status': v13.stageProgressDTOS[0].stageStatus,
-                  'description': v13.basicMissionDTO.name,
-                  'rewardWorth': v13.stageProgressDTOS[0].worth
-                }, vipCycleMissions.push(v14);
-                break;
-              case 20:
-                console.log("\n🔔 " + v13.basicMissionDTO.name + ": 已完成，未领取成长值");
-                break;
-              case 10:
-                console.log("\n⏰ " + v13.basicMissionDTO.name + ": 进行中"), v14 = {
-                  'status': v13.stageProgressDTOS[0].stageStatus,
-                  'description': v13.basicMissionDTO.name,
-                  'rewardWorth': v13.stageProgressDTOS[0].worth
-                }, vipCycleMissions.push(v14);
-                break;
-              case 100:
-                console.log("\n✅ " + v13.basicMissionDTO.name + ':\x20已完成');
-                break;
-              default:
-                break;
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + '/weapi/middle/vip/mission/user/progress/list?csrf_token=' + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({})
+          },
+          res = await weapiRequest(opts);
+        if (res.code == 200 && res.data) {
+          const v12 = res.data;
+          if (v12.length) {
+            console.log("\n------- 🚀 开始获取会员每日任务 -------");
+            for (let v13 of v12) {
+              let v14 = {};
+              if (v13.basicMissionDTO.name == "红心3首会员单曲") switch (v13.stageProgressDTOS[0].stageStatus) {
+                case 0:
+                  console.log("\n❌ " + v13.basicMissionDTO.name + ":  未完成"), v14 = {
+                    'status': v13.stageProgressDTOS[0].stageStatus,
+                    'description': v13.basicMissionDTO.name,
+                    'rewardWorth': v13.stageProgressDTOS[0].worth
+                  }, vipCycleMissions.push(v14);
+                  break;
+                case 20:
+                  console.log("\n🔔 " + v13.basicMissionDTO.name + ": 已完成，未领取成长值");
+                  break;
+                case 10:
+                  console.log("\n⏰ " + v13.basicMissionDTO.name + ": 进行中"), v14 = {
+                    'status': v13.stageProgressDTOS[0].stageStatus,
+                    'description': v13.basicMissionDTO.name,
+                    'rewardWorth': v13.stageProgressDTOS[0].worth
+                  }, vipCycleMissions.push(v14);
+                  break;
+                case 100:
+                  console.log("\n✅ " + v13.basicMissionDTO.name + ':\x20已完成');
+                  break;
+                default:
+                  break;
+              }
             }
           }
         }
+        return resolve();
       }
-      return resolve();
+    } catch (e) {
+      console.log("\n⚠️ getVipCycleMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function finishVipCycleMissions() {
   return new Promise(async resolve => {
-    {
-      if (vipCycleMissions.length) {
-        console.log("\n------- 🚀 开始完成会员每日任务 -------");
-        for (let v1 of vipCycleMissions) {
-          console.log("\n⏰ 正在完成: " + v1.description);
-          switch (v1.description) {
-            case "红心3首会员单曲":
-              for (let v12 = 0; v12 < songs.length; v12++) {
-                await handleLikeSong(!false, songs[v12]);
-              }
-              break;
-            default:
-              break;
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        if (vipCycleMissions.length) {
+          console.log("\n------- 🚀 开始完成会员每日任务 -------");
+          for (let v1 of vipCycleMissions) {
+            console.log("\n⏰ 正在完成: " + v1.description);
+            switch (v1.description) {
+              case "红心3首会员单曲":
+                for (let v12 = 0; v12 < songs.length; v12++) {
+                  await handleLikeSong(!false, songs[v12]);
+                }
+                break;
+              default:
+                break;
+            }
           }
         }
+        return resolve();
       }
-      return resolve();
+    } catch (e) {
+      console.log("\n⚠️ finishVipCycleMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function handleLikeSong(p1, p2) {
   return new Promise(async resolve => {
-    const opts = {
-      'url': domain + "/weapi/song/like?csrf_token=" + csrfToken,
-      'headers': headers,
-      'body': weapiEncrypt({
-        'like': p1,
-        'trackId': p2
-      })
-    };
-    return await weapiRequest(opts), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+        'url': domain + "/weapi/song/like?csrf_token=" + csrfToken,
+        'headers': headers,
+        'body': weapiEncrypt({
+          'like': p1,
+          'trackId': p2
+        })
+      };
+      return await weapiRequest(opts), resolve();
+    } catch (e) {
+      console.log("\n⚠️ handleLikeSong 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
+    }
   });
 }
 
 function receiveVipReward() {
   return new Promise(async resolve => {
-    {
-      console.log("\n------- 🚀 开始领取会员成长值 -------");
-      const opts = {
-          'url': domain + '/weapi/vipnewcenter/app/level/task/reward/getall?csrf_token=' + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({})
-        },
-        res = await weapiRequest(opts);
-      return res.code == 200 && res.message == "success" && console.log("\n✅ 领取会员成长值: 已完成"), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        console.log("\n------- 🚀 开始领取会员成长值 -------");
+        const opts = {
+            'url': domain + '/weapi/vipnewcenter/app/level/task/reward/getall?csrf_token=' + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({})
+          },
+          res = await weapiRequest(opts);
+        return res.code == 200 && res.message == "success" && console.log("\n✅ 领取会员成长值: 已完成"), resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ receiveVipReward 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function dailySign() {
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + "/weapi/point/dailyTask?csrf_token=" + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({
-            'type': '0'
-          })
-        },
-        res = await weapiRequest(opts);
-      return resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + "/weapi/point/dailyTask?csrf_token=" + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({
+              'type': '0'
+            })
+          },
+          res = await weapiRequest(opts);
+        return resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ dailySign 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function getMusicianInfo() {
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + "/weapi/nmusician/entrance/user/musician/info/get?csrf_token=" + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({})
-        },
-        res = await weapiRequest(opts);
-      return resolve(res);
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + "/weapi/nmusician/entrance/user/musician/info/get?csrf_token=" + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({})
+          },
+          res = await weapiRequest(opts);
+        return resolve(res);
+      }
+    } catch (e) {
+      console.log("\n⚠️ getMusicianInfo 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function getUserInfo() {
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + "/weapi/nuser/account/get?csrf_token=" + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({})
-        },
-        {
-          profile: profile
-        } = await weapiRequest(opts);
-      return userId = profile.userId, console.log("\n------- 📢 开始获取音乐人信息 -------"), console.log("\n💡 您当前云豆数量共计 " + cloudBeanCount + '\x20颗'), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + "/weapi/nuser/account/get?csrf_token=" + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({})
+          },
+          {
+            profile: profile
+          } = await weapiRequest(opts);
+        return userId = profile.userId, console.log("\n------- 📢 开始获取音乐人信息 -------"), console.log("\n💡 您当前云豆数量共计 " + cloudBeanCount + '\x20颗'), resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ getUserInfo 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function getCloudbeanCount() {
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + "/weapi/cloudbean/get?csrf_token=" + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({})
-        },
-        {
-          data: data
-        } = await weapiRequest(opts),
-        {
-          cloudBean: cloudBean
-        } = data;
-      return cloudBeanCount = cloudBean, resolve(cloudBean);
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + "/weapi/cloudbean/get?csrf_token=" + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({})
+          },
+          {
+            data: data
+          } = await weapiRequest(opts),
+          {
+            cloudBean: cloudBean
+          } = data;
+        return cloudBeanCount = cloudBean, resolve(cloudBean);
+      }
+    } catch (e) {
+      console.log("\n⚠️ getCloudbeanCount 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
@@ -635,13 +537,19 @@ function accessMusicianHome() {
     }
   };
   return new Promise(async resolve => {
-    const opts = {
-        'url': domain + "/weapi/creator/user/access?csrf_token=" + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({})
-      },
-      res = await weapiRequest(opts);
-    if (res.code == 200 && res.message == "success") return console.log('✅\x20访问音乐人主页:\x20\x20已完成'), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+          'url': domain + "/weapi/creator/user/access?csrf_token=" + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({})
+        },
+        res = await weapiRequest(opts);
+      if (res.code == 200 && res.message == "success") return console.log('✅\x20访问音乐人主页:\x20\x20已完成'), resolve();
+    } catch (e) {
+      console.log("\n⚠️ accessMusicianHome 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
+    }
   });
 }
 
@@ -667,49 +575,55 @@ function getCycleMissions() {
     }
   };
   return new Promise(async resolve => {
-    const opts = {
-        'url': domain + "/weapi/nmusician/workbench/mission/cycle/list?csrf_token=" + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({
-          'tag': 101
-        })
-      },
-      res = await weapiRequest(opts);
-    if (res.code == 200 && res.message == "success") {
-      const {
-        list: list
-      } = res.data;
-      console.log("\n------- 🚀 开始获取音乐人每日任务 -------");
-      for (let v12 of list) {
-        switch (v12.status) {
-          case 0:
-            console.log('❌\x20' + v12.description + ": 未完成");
-            const v13 = {
-              'status': v12.status,
-              'description': v12.description,
-              'rewardWorth': v12.rewardWorth,
-              'missionId': v12.missionId,
-              'period': v12.period
-            };
-            musicianCycleMissions.push(v13);
-          case 20:
-            console.log('🔔\x20' + v12.description + ": 已完成，未领取云豆");
-            break;
-          case 10:
-            console.log('⏰\x20' + v12.description + ':\x20进行中');
-            break;
-          case 100:
-            console.log('✅\x20' + v12.description + ": 已完成");
-            break;
-          default:
-            break;
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+          'url': domain + "/weapi/nmusician/workbench/mission/cycle/list?csrf_token=" + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({
+            'tag': 101
+          })
+        },
+        res = await weapiRequest(opts);
+      if (res.code == 200 && res.message == "success") {
+        const {
+          list: list
+        } = res.data;
+        console.log("\n------- 🚀 开始获取音乐人每日任务 -------");
+        for (let v12 of list) {
+          switch (v12.status) {
+            case 0:
+              console.log('❌\x20' + v12.description + ": 未完成");
+              const v13 = {
+                'status': v12.status,
+                'description': v12.description,
+                'rewardWorth': v12.rewardWorth,
+                'missionId': v12.missionId,
+                'period': v12.period
+              };
+              musicianCycleMissions.push(v13);
+            case 20:
+              console.log('🔔\x20' + v12.description + ": 已完成，未领取云豆");
+              break;
+            case 10:
+              console.log('⏰\x20' + v12.description + ':\x20进行中');
+              break;
+            case 100:
+              console.log('✅\x20' + v12.description + ": 已完成");
+              break;
+            default:
+              break;
+          }
+        }
+        return resolve();
+      } else {
+        {
+          return console.log("❌ 获取每日任务失败: " + res.message), resolve();
         }
       }
-      return resolve();
-    } else {
-      {
-        return console.log("❌ 获取每日任务失败: " + res.message), resolve();
-      }
+    } catch (e) {
+      console.log("\n⚠️ getCycleMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
@@ -798,47 +712,53 @@ function finishMusicianCycleMissions() {
     }
   };
   return new Promise(async resolve => {
-    if (musicianCycleMissions.length) {
-      {
-        console.log("\n------- 🚀 开始完成音乐人每日任务 -------");
-        const v12 = await getMySongs();
-        for (let v13 of musicianCycleMissions) {
-          console.log("⏰ 正在完成: " + v13.description);
-          switch (v13.description) {
-            case "发表主创说":
-              if (v12) {
-                {
-                  await publishCreativeStatement(v12, '欢迎收听我的歌曲');
-                }
-              }
-              break;
-            case "回复粉丝私信":
-              (fansId == '' || fansId == undefined) && (fansId = await getMyPrivateMsgs(), !fansId && (fansId = await getMyFolloweds()));
-              await replyPrivateMsg(fansId);
-              break;
-            case "在动态分享歌曲":
-              v12 && (await shareMySong(v12, "欢迎收听我的歌曲"));
-              break;
-            case "在自己动态下发布评论":
-              const v14 = await getMyComments();
-              if (v14) {
-                {
-                  await publishComment(v14.threadId);
-                }
-              } else {
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      if (musicianCycleMissions.length) {
+        {
+          console.log("\n------- 🚀 开始完成音乐人每日任务 -------");
+          const v12 = await getMySongs();
+          for (let v13 of musicianCycleMissions) {
+            console.log("⏰ 正在完成: " + v13.description);
+            switch (v13.description) {
+              case "发表主创说":
                 if (v12) {
-                  const v15 = await shareMySong(v12, "欢迎收听我的歌曲");
-                  v15 && (await publishComment(v15.event.threadId));
+                  {
+                    await publishCreativeStatement(v12, '欢迎收听我的歌曲');
+                  }
                 }
-              }
-              break;
-            default:
-              break;
+                break;
+              case "回复粉丝私信":
+                (fansId == '' || fansId == undefined) && (fansId = await getMyPrivateMsgs(), !fansId && (fansId = await getMyFolloweds()));
+                await replyPrivateMsg(fansId);
+                break;
+              case "在动态分享歌曲":
+                v12 && (await shareMySong(v12, "欢迎收听我的歌曲"));
+                break;
+              case "在自己动态下发布评论":
+                const v14 = await getMyComments();
+                if (v14) {
+                  {
+                    await publishComment(v14.threadId);
+                  }
+                } else {
+                  if (v12) {
+                    const v15 = await shareMySong(v12, "欢迎收听我的歌曲");
+                    v15 && (await publishComment(v15.event.threadId));
+                  }
+                }
+                break;
+              default:
+                break;
+            }
           }
         }
       }
+      return resolve();
+    } catch (e) {
+      console.log("\n⚠️ finishMusicianCycleMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
-    return resolve();
   });
 }
 
@@ -873,139 +793,169 @@ function getStageMissions() {
     }
   };
   return new Promise(async resolve => {
-    const opts = {
-        'url': domain + "/weapi/nmusician/workbench/mission/stage/list?csrf_token=" + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({})
-      },
-      res = await weapiRequest(opts);
-    if (res.code == 200 && res.message == "success") {
-      {
-        const {
-          list: list
-        } = res.data;
-        console.log("\n------- 🚀 开始获取音乐人推荐任务 -------");
-        for (let v12 of list) {
-          if (v12.description == '回复粉丝私信' || v12.description == "发表主创说" || v12.description == "发布动态") {
-            {
-              switch (v12.status) {
-                case 0:
-                  console.log('\x0a❌\x20' + v12.description + ':\x20\x20未完成');
-                  const v13 = {
-                    'status': v12.status,
-                    'description': v12.description,
-                    'rewardWorth': v12.rewardWorth,
-                    'missionId': v12.missionId,
-                    'period': v12.period
-                  };
-                  musicianCycleMissions.push(v13);
-                case 20:
-                  console.log("\n🔔 " + v12.description + ':\x20已完成，未领取云豆');
-                  break;
-                case 10:
-                  console.log("\n⏰ " + v12.description + ": 进行中");
-                  break;
-                case 100:
-                  console.log("\n✅ " + v12.description + ':\x20已完成');
-                  break;
-                default:
-                  break;
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+          'url': domain + "/weapi/nmusician/workbench/mission/stage/list?csrf_token=" + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({})
+        },
+        res = await weapiRequest(opts);
+      if (res.code == 200 && res.message == "success") {
+        {
+          const {
+            list: list
+          } = res.data;
+          console.log("\n------- 🚀 开始获取音乐人推荐任务 -------");
+          for (let v12 of list) {
+            if (v12.description == '回复粉丝私信' || v12.description == "发表主创说" || v12.description == "发布动态") {
+              {
+                switch (v12.status) {
+                  case 0:
+                    console.log('\x0a❌\x20' + v12.description + ':\x20\x20未完成');
+                    const v13 = {
+                      'status': v12.status,
+                      'description': v12.description,
+                      'rewardWorth': v12.rewardWorth,
+                      'missionId': v12.missionId,
+                      'period': v12.period
+                    };
+                    musicianCycleMissions.push(v13);
+                  case 20:
+                    console.log("\n🔔 " + v12.description + ':\x20已完成，未领取云豆');
+                    break;
+                  case 10:
+                    console.log("\n⏰ " + v12.description + ": 进行中");
+                    break;
+                  case 100:
+                    console.log("\n✅ " + v12.description + ':\x20已完成');
+                    break;
+                  default:
+                    break;
+                }
               }
             }
           }
+          return resolve();
         }
-        return resolve();
-      }
-    } else return console.log('❌\x20获取每日任务失败:\x20' + res.message), resolve();
+      } else return console.log('❌\x20获取每日任务失败:\x20' + res.message), resolve();
+    } catch (e) {
+      console.log("\n⚠️ getStageMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
+    }
   });
 }
 
 function publishCreativeStatement(p1, p2) {
   return new Promise(async resolve => {
-    {
-      const opts = {
-        'url': domain + '/weapi/v1/resource/comments/add?csrf_token=' + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({
-          'threadId': 'R_SO_4_' + p1,
-          'content': p2
-        })
-      };
-      return await weapiRequest(opts), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+          'url': domain + '/weapi/v1/resource/comments/add?csrf_token=' + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({
+            'threadId': 'R_SO_4_' + p1,
+            'content': p2
+          })
+        };
+        return await weapiRequest(opts), resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ publishCreativeStatement 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function getMyPrivateMsgs() {
   return new Promise(async resolve => {
-    const opts = {
-        'url': domain + '/weapi/msg/private/users?csrf_token=' + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({})
-      },
-      res = await weapiRequest(opts);
-    if (res.code == 200) {
-      const {
-        msg: msg
-      } = res;
-      if (msg.length) {
-        // 修正上游 bug：原脚本此处误写为 msgs（未定义），应为解构出的 msg 
-        const v1 = msg.find(item => item.fromUser.remarkName == "回复粉丝私信");
-        if (v1) return resolve(v1.fromUser.userId);
-        else {
-          {
-            return console.log("\n⚠️ 您的私信列表中没有昵称为“回复粉丝私信”的粉丝给你发送私信"), resolve(null);
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+          'url': domain + '/weapi/msg/private/users?csrf_token=' + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({})
+        },
+        res = await weapiRequest(opts);
+      if (res.code == 200) {
+        const {
+          msg: msg
+        } = res;
+        if (msg.length) {
+          // 修正上游 bug：原脚本此处误写为 msgs（未定义），应为解构出的 msg 
+          const v1 = msg.find(item => item.fromUser.remarkName == "回复粉丝私信");
+          if (v1) return resolve(v1.fromUser.userId);
+          else {
+            {
+              return console.log("\n⚠️ 您的私信列表中没有昵称为“回复粉丝私信”的粉丝给你发送私信"), resolve(null);
+            }
           }
-        }
-      } else return console.log("\n⚠️ 您的私信列表为空，无法完成“回复粉丝私信”任务"), resolve(null);
+        } else return console.log("\n⚠️ 您的私信列表为空，无法完成“回复粉丝私信”任务"), resolve(null);
+      }
+    } catch (e) {
+      console.log("\n⚠️ getMyPrivateMsgs 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function getMyFolloweds() {
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + "/weapi/user/getfolloweds?csrf_token=" + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({
-            'userId': userId,
-            'time': 0,
-            'limit': 10,
-            'offset': 0,
-            'getcounts': !false
-          })
-        },
-        res = await weapiRequest(opts);
-      if (res.code == 200) {
-        const {
-          followeds: followeds
-        } = res;
-        if (followeds.length) {
-          const v1 = followeds.find(item => item.remarkName == '回复粉丝私信');
-          return v1 ? resolve(v1.userId) : (console.log("\n⚠️ 您的粉丝列表中没有备注为“回复粉丝私信”的粉丝"), resolve(null));
-        } else {
-          {
-            return console.log("\n⚠️ 您的粉丝列表为空，无法完成“回复粉丝私信”任务"), resolve(null);
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + "/weapi/user/getfolloweds?csrf_token=" + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({
+              'userId': userId,
+              'time': 0,
+              'limit': 10,
+              'offset': 0,
+              'getcounts': !false
+            })
+          },
+          res = await weapiRequest(opts);
+        if (res.code == 200) {
+          const {
+            followeds: followeds
+          } = res;
+          if (followeds.length) {
+            const v1 = followeds.find(item => item.remarkName == '回复粉丝私信');
+            return v1 ? resolve(v1.userId) : (console.log("\n⚠️ 您的粉丝列表中没有备注为“回复粉丝私信”的粉丝"), resolve(null));
+          } else {
+            {
+              return console.log("\n⚠️ 您的粉丝列表为空，无法完成“回复粉丝私信”任务"), resolve(null);
+            }
           }
         }
       }
+    } catch (e) {
+      console.log("\n⚠️ getMyFolloweds 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function replyPrivateMsg(p1) {
   return new Promise(async resolve => {
-    const opts = {
-      'url': domain + "/weapi/msg/private/send?csrf_token=" + csrfToken,
-      'headers': headers,
-      'body': weapiEncrypt({
-        'userIds': '[' + p1 + ']',
-        'type': "text",
-        'msg': "感谢关注!"
-      })
-    };
-    return await weapiRequest(opts), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+        'url': domain + "/weapi/msg/private/send?csrf_token=" + csrfToken,
+        'headers': headers,
+        'body': weapiEncrypt({
+          'userIds': '[' + p1 + ']',
+          'type': "text",
+          'msg': "感谢关注!"
+        })
+      };
+      return await weapiRequest(opts), resolve();
+    } catch (e) {
+      console.log("\n⚠️ replyPrivateMsg 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
+    }
   });
 }
 
@@ -1037,165 +987,219 @@ function getObtainMissions() {
     }
   };
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + "/weapi/nmusician/workbench/mission/un/obtain/mission/list/get?csrf_token=" + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({})
-        },
-        res = await weapiRequest(opts);
-      if (res.code == 200 && res.message == "success") {
-        {
-          const {
-            list: list
-          } = res.data;
-          if (list.length) {
-            console.log('\x0a-------\x20🚀\x20开始领取待领云豆\x20-------');
-            for (let v12 of list) {
-              await receiveReward(v12);
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + "/weapi/nmusician/workbench/mission/un/obtain/mission/list/get?csrf_token=" + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({})
+          },
+          res = await weapiRequest(opts);
+        if (res.code == 200 && res.message == "success") {
+          {
+            const {
+              list: list
+            } = res.data;
+            if (list.length) {
+              console.log('\x0a-------\x20🚀\x20开始领取待领云豆\x20-------');
+              for (let v12 of list) {
+                await receiveReward(v12);
+              }
             }
+            return resolve();
           }
-          return resolve();
-        }
-      } else {
-        {
-          return console.log('❌\x20获取每日任务失败:\x20' + res.message), resolve();
+        } else {
+          {
+            return console.log('❌\x20获取每日任务失败:\x20' + res.message), resolve();
+          }
         }
       }
+    } catch (e) {
+      console.log("\n⚠️ getObtainMissions 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function receiveReward(p1) {
   return new Promise(async resolve => {
-    {
-      const opts = {
-        'url': domain + '/weapi/nmusician/workbench/mission/reward/obtain/new?csrf_token=' + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({
-          'userMissionId': p1.userMissionId.toString(),
-          'period': p1.period.toString()
-        })
-      };
-      return await weapiRequest(opts), console.log('✅\x20' + p1.description + ':\x20已完成，领取\x20' + p1.rewardWorth + " 云豆"), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+          'url': domain + '/weapi/nmusician/workbench/mission/reward/obtain/new?csrf_token=' + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({
+            'userMissionId': p1.userMissionId.toString(),
+            'period': p1.period.toString()
+          })
+        };
+        return await weapiRequest(opts), console.log('✅\x20' + p1.description + ':\x20已完成，领取\x20' + p1.rewardWorth + " 云豆"), resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ receiveReward 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function getMyComments() {
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + "/weapi/event/get/" + userId + "?csrf_token=" + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({
-            'getcounts': !false,
-            'time': -1,
-            'limit': 1,
-            'total': false
-          })
-        },
-        res = await weapiRequest(opts);
-      if (res.code == 200) return res.events.length ? resolve(res.events[0]) : (console.log("\n⚠️ 您还没有发布动态，请先发布动态"), resolve(null));
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + "/weapi/event/get/" + userId + "?csrf_token=" + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({
+              'getcounts': !false,
+              'time': -1,
+              'limit': 1,
+              'total': false
+            })
+          },
+          res = await weapiRequest(opts);
+        if (res.code == 200) return res.events.length ? resolve(res.events[0]) : (console.log("\n⚠️ 您还没有发布动态，请先发布动态"), resolve(null));
+      }
+    } catch (e) {
+      console.log("\n⚠️ getMyComments 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function publishComment(p1) {
   return new Promise(async resolve => {
-    const opts = {
-      'url': domain + "/weapi/resource/comments/add?csrf_token=" + csrfToken,
-      'headers': headers,
-      'body': weapiEncrypt({
-        'threadId': p1,
-        'content': "欢迎收听我的歌曲"
-      })
-    };
-    return await weapiRequest(opts), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const opts = {
+        'url': domain + "/weapi/resource/comments/add?csrf_token=" + csrfToken,
+        'headers': headers,
+        'body': weapiEncrypt({
+          'threadId': p1,
+          'content': "欢迎收听我的歌曲"
+        })
+      };
+      return await weapiRequest(opts), resolve();
+    } catch (e) {
+      console.log("\n⚠️ publishComment 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
+    }
   });
 }
 
 function removeComment(p1) {
   return new Promise(async resolve => {
-    {
-      const opts = {
-        'url': domain + "/weapi/event/delete?csrf_token=" + csrfToken,
-        'headers': headers,
-        'body': weapiEncrypt({
-          'id': p1
-        })
-      };
-      return await weapiRequest(opts), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+          'url': domain + "/weapi/event/delete?csrf_token=" + csrfToken,
+          'headers': headers,
+          'body': weapiEncrypt({
+            'id': p1
+          })
+        };
+        return await weapiRequest(opts), resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ removeComment 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function getMySongs() {
   return new Promise(async resolve => {
-    {
-      const opts = {
-          'url': domain + "/weapi/nmusician/production/common/artist/song/item/list/get?csrf_token=" + csrfToken,
-          'headers': headers,
-          'body': weapiEncrypt({
-            'fromBackend': 0,
-            'limit': 10,
-            'offset': 0,
-            'online': 1
-          })
-        },
-        res = await weapiRequest(opts);
-      if (res.code == 200 && res.data) {
-        const {
-          list: list
-        } = res.data;
-        if (list.length) {
-          const v1 = list[0].songId;
-          return resolve(v1);
-        } else return console.log('\x0a⚠️\x20您还没有发布歌曲，请先发布歌曲'), resolve(null);
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const opts = {
+            'url': domain + "/weapi/nmusician/production/common/artist/song/item/list/get?csrf_token=" + csrfToken,
+            'headers': headers,
+            'body': weapiEncrypt({
+              'fromBackend': 0,
+              'limit': 10,
+              'offset': 0,
+              'online': 1
+            })
+          },
+          res = await weapiRequest(opts);
+        if (res.code == 200 && res.data) {
+          const {
+            list: list
+          } = res.data;
+          if (list.length) {
+            const v1 = list[0].songId;
+            return resolve(v1);
+          } else return console.log('\x0a⚠️\x20您还没有发布歌曲，请先发布歌曲'), resolve(null);
+        }
       }
+    } catch (e) {
+      console.log("\n⚠️ getMySongs 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
 
 function shareMySong(p1, p2) {
   return new Promise(async resolve => {
-    const v1 = {
-        'id': p1.toString(),
-        'uuid': generateUUID(32),
-        'addComment': "false",
-        'socialSpaceVisible': !false,
-        'verifyId': 1,
-        'deviceId': deviceId,
-        'type': 'song',
-        'os': 'iOS',
-        'header': {},
-        'videoinfo': '{\x22size\x22:0,\x22nosType\x22:1,\x22width\x22:0,\x22height\x22:0,\x22duration\x22:0}',
-        'privacySetting': 2,
-        'threadId': "R_SO_4_" + p1,
-        'e_r': !false,
-        'msg': p2,
-        'pics': ''
-      },
-      opts = {
-        'url': newDomain + '/eapi/share/friends/resource?_nmclfl=1',
-        'headers': {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': userAgent,
-          'Cookie': cookie
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      const v1 = {
+          'id': p1.toString(),
+          'uuid': generateUUID(32),
+          'addComment': "false",
+          'socialSpaceVisible': !false,
+          'verifyId': 1,
+          'deviceId': deviceId,
+          'type': 'song',
+          'os': 'iOS',
+          'header': {},
+          'videoinfo': '{\x22size\x22:0,\x22nosType\x22:1,\x22width\x22:0,\x22height\x22:0,\x22duration\x22:0}',
+          'privacySetting': 2,
+          'threadId': "R_SO_4_" + p1,
+          'e_r': !false,
+          'msg': p2,
+          'pics': ''
         },
-        'body': eapiEncrypt("/api/share/friends/resource", v1)
-      },
-      res = await eapiRequest(opts);
-    return res.code == 200 && res.id ? (commentId = res.id, resolve(res)) : resolve(null);
+        opts = {
+          'url': newDomain + '/eapi/share/friends/resource?_nmclfl=1',
+          'headers': {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': userAgent,
+            'Cookie': cookie
+          },
+          'body': eapiEncrypt("/api/share/friends/resource", v1)
+        },
+        res = await eapiRequest(opts);
+      return res.code == 200 && res.id ? (commentId = res.id, resolve(res)) : resolve(null);
+    } catch (e) {
+      console.log("\n⚠️ shareMySong 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
+    }
   });
 }
 
 function sendMessage() {
   return new Promise(async resolve => {
-    {
-      const v1 = cloudBeanCount,
-        v2 = await getCloudbeanCount();
-      return console.log("\n------- 📢 刷新当前用户信息 -------"), console.log("\n💡 本次获得云豆数量: " + (v2 - v1) + " 颗，您当前云豆共计:  " + v2 + '\x20颗'), console.log('\x0a💡\x20本次获得会员成长值:\x20' + (newVipScore - oldVipScore) + " 分，您当前成长值共计: " + newVipScore + '\x20分'), $.msg($.name, "任务完成", '本次获得云豆\x20' + (v2 - v1) + " 颗，您当前累计云豆 " + v2 + '\x20颗\x0a本次获得会员成长值:\x20' + (newVipScore - oldVipScore) + " 分，您当前成长值共计: " + newVipScore + '\x20分'), resolve();
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      {
+        const v1 = cloudBeanCount,
+          v2 = await getCloudbeanCount();
+        // 拉不到云豆数就别报「任务完成」，否则会显示 NaN / undefined 
+        if (typeof v2 !== "number" || isNaN(v2)) {
+          console.log("\n❌ 云豆数量拉取失败，Cookie 可能已过期");
+          $.msg($.name, "任务未完成 ❌", "云豆数量拉取失败，Cookie 可能已过期。\n请重新用 cookie.js 抓一次 Cookie 后再跑。");
+          return resolve();
+        }
+        return console.log("\n------- 📢 刷新当前用户信息 -------"), console.log("\n💡 本次获得云豆数量: " + (v2 - v1) + " 颗，您当前云豆共计:  " + v2 + '\x20颗'), console.log('\x0a💡\x20本次获得会员成长值:\x20' + (newVipScore - oldVipScore) + " 分，您当前成长值共计: " + newVipScore + '\x20分'), $.msg($.name, "任务完成", '本次获得云豆\x20' + (v2 - v1) + " 颗，您当前累计云豆 " + v2 + '\x20颗\x0a本次获得会员成长值:\x20' + (newVipScore - oldVipScore) + " 分，您当前成长值共计: " + newVipScore + '\x20分'), resolve();
+      }
+    } catch (e) {
+      console.log("\n⚠️ sendMessage 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
     }
   });
 }
@@ -1723,25 +1727,31 @@ function weapiRequest(p1) {
 
 function eapiRequest(p1) {
   return new Promise(async (resolve, p12) => {
-    let v1 = null;
-    if ($.isNode()) {
-      {
-        v1 = await fetch(p1.url, {
-          'method': "post",
-          'headers': p1.headers,
-          'body': p1.body
-        }).then(p13 => p13.arrayBuffer());
-      }
-    } else !$.isQuanX() && (p1['binary-mode'] = !false), v1 = await $.http.post(p1).then(p13 => {
-      return $.isQuanX() ? p13.bodyBytes : p13.body;
-    });
-    const v2 = new AES(eapiKey, {
-        'mode': "ecb",
-        'iv': iv
-      }),
-      v3 = new Uint8Array(v1),
-      v4 = await v2.decrypt(v3);
-    return resolve(JSON.parse(v4));
+    // async 执行器里抛出的异常不会 reject 外层 promise，必须就地兜住并 resolve 
+    try {
+      let v1 = null;
+      if ($.isNode()) {
+        {
+          v1 = await fetch(p1.url, {
+            'method': "post",
+            'headers': p1.headers,
+            'body': p1.body
+          }).then(p13 => p13.arrayBuffer());
+        }
+      } else !$.isQuanX() && (p1['binary-mode'] = !false), v1 = await $.http.post(p1).then(p13 => {
+        return $.isQuanX() ? p13.bodyBytes : p13.body;
+      });
+      const v2 = new AES(eapiKey, {
+          'mode': "ecb",
+          'iv': iv
+        }),
+        v3 = new Uint8Array(v1),
+        v4 = await v2.decrypt(v3);
+      return resolve(JSON.parse(v4));
+    } catch (e) {
+      console.log("\n⚠️ eapiRequest 出错: " + (e && e.message ? e.message : String(e)));
+      resolve();
+    }
   });
 }
 
