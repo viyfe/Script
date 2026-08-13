@@ -1,74 +1,99 @@
 /**************************************
- * 网易云音乐人 —— 获取 Cookie（修复版）
+ * 网易云音乐人 —— 获取 Cookie（字段合并版）
  * 原脚本作者：@leiyiyan
- * 修复目标：QuantumultX（圈X）上抓不到 CK
  *
- * ============ 原版为什么在圈X抓不到 ============
- * 1) 重写类型用的是 `script-request-body`。
- *    该类型在「请求没有 body / body 不是可解析文本」时不会触发，
- *    而脚本实际只需要 header。改用 `script-request-header` 才稳定触发。
+ * ============ 这版按 Docker 项目的取 CK 方式重写 ============
+ * 参照能跑通的 Docker 项目 backend/app/netease_core/ 的实现。
  *
- * 2) `$done()` 只写在 if 分支里。
- *    一旦 `Netease_Musician_Cookie` 已有值，脚本什么都不做且**永不调用 $done**，
- *    圈X 会把这条请求一直挂起到超时。
+ * Docker 项目是这么拿 Cookie 的：
+ *   login.py:855-856   cookies = context.cookies("https://music.163.com")
+ *                      cookie_str = cookies_to_cookie_str(cookies)
+ *   login.py:81-90     只拼 name=value，用 "; " 连接
  *
- * 3) 死锁逻辑：`if (!$.getdata(...))` 表示「存过一次就永不再更新」。
- *    更糟的是原版不校验 cookie 是否为空——如果第一次抓取时
- *    `$request.headers["cookie"]` 是 undefined，会把字符串 "undefined"
- *    写进存储。此后该值恒为真值，脚本**永远不会再抓**，
- *    表现就是「怎么刷都没有反应、没有通知」。
+ * 关键点：context.cookies() 返回的是浏览器**整个域的 Cookie 罐**，
+ * 也就是所有响应 Set-Cookie 累积下来的并集，不是某一次请求带的那一份。
  *
- * 4) header 取值只试了 "cookie" / "Cookie" 两种大小写。
+ * 而 MITM 只能看到**单次请求**的 Cookie 头，它只是那个罐的子集：
+ *   · APP 原生接口(eapi)请求：带 MUSIC_U / os / appver / deviceId / NMTID，
+ *     但通常**不带 __csrf**（__csrf 是网页 XSRF 用的字段）
+ *     host 形如 interface.music.163.com / interface3.music.163.com
+ *   · APP 内嵌网页(H5)请求：带 MUSIC_U + __csrf
+ *     host 是**裸 music.163.com**（没有子域）
  *
- * 5) 不校验登录态：未登录时的 cookie 也会被存进去，
- *    task.js 拿到后全部任务失败。
+ * 所以重写规则的 host 部分必须写成 (?:[\w-]+\.)?music\.163\.com —— 子域可有可无。
+ * 写成 [\w-]+\.music\.163\.com（强制要有子域）会把裸 music.163.com 排除掉，
+ * 而那正是唯一能拿到 __csrf 的来源，原作者的窄规则针对的也是这个 host。
  *
- * ============ 本版改动 ============
- * - 任何分支都 `$done({})`，请求绝不挂起
- * - header 取值大小写不敏感
- * - 必须含 MUSIC_U 才写入（确认已登录）
- * - 允许覆盖更新，支持换账号；内容没变则静默跳过
- * - 60 秒通知节流，避免刷屏
- * - 清洗历史脏值（"undefined" / "null" / 空串）
- * - 兼容 QuantumultX / Loon / Surge / Stash / Shadowrocket
+ * 旧版把「最后看到的那一份」整串覆盖写入，所以存进去的经常缺字段：
+ * 抓到 eapi 请求 → 存的 CK 里没有 __csrf → task.js 的 formatCookie 取不到
+ * csrfToken → 所有请求带着 csrf_token=undefined 发出去。
+ * 这就是「抓到了 Cookie 但任务还是不动」的根因。
  *
- * ============ 圈X 配置（重点：script-request-header）============
+ * 本版改成和 Docker 一样维护一个**字段罐**：把每次看到的 Cookie 头拆成字段，
+ * 按字段名合并进已存的罐，同名取新值，再序列化回 "k=v; k=v"。
+ * 这样 MUSIC_U 从 eapi 请求拿、__csrf 从 H5 请求拿，凑齐即成完整一份，
+ * 不用指望某一次请求刚好什么都带。
+ *
+ * 换账号：MUSIC_U 变了就整罐重置，不会把两个账号的字段混在一起
+ * （Docker 侧换账号是新开浏览器 context，天然隔离）。
+ *
+ * 落盘门槛：罐里必须有 MUSIC_U。
+ * Docker 侧 login.py:858-860 用的是 has_music_u or has_csrf，那是判断
+ * 「登录有没有产出东西」；对 task.js 来说 MUSIC_U 才是身份凭据，光有 __csrf
+ * 没用，所以这里只认 MUSIC_U。__csrf 缺失不再阻塞 —— task.js 已按
+ * core.py:255-260 的做法在缺失时自造一个随机 csrf_token。
+ *
+ * ============ 圈X 配置 ============
  * [rewrite_local]
- * ^https?:\/\/music\.163\.com\/weapi\/(cloudbean\/records\/incomes|nmusician\/workbench\/mission\/cycle\/list) url script-request-header cookie.js
+ * ^https?:\/\/(?:[\w-]+\.)?music\.163\.com\/ url script-request-header cookie.js
  *
- * [mitm]
- * hostname = music.163.com
+ * [MITM]
+ * hostname = *.music.163.com, music.163.com
  *
  * ============ Loon 配置 ============
  * [Script]
- * http-request ^https?:\/\/music\.163\.com\/weapi\/(cloudbean\/records\/incomes|nmusician\/workbench\/mission\/cycle\/list) script-path=cookie.js, requires-body=false, tag=网易云音乐人获取Cookie
+ * http-request ^https?:\/\/(?:[\w-]+\.)?music\.163\.com\/ script-path=cookie.js, requires-body=false, tag=网易云音乐人获取Cookie
  *
  * [MitM]
- * hostname = music.163.com
+ * hostname = *.music.163.com, music.163.com
  *
- * ============ 抓取方法 ============
- * 网易云音乐 APP → 左上角菜单 → 创作者中心 → 音乐人中心
- * → 点「xxx云豆待使用」→ 顶部「收支记录」→ 等待通知提示获取成功
+ * ============ 抓取步骤 ============
+ * 1. 确认圈X 已开 MITM，证书已安装并在「设置-通用-关于本机-证书信任设置」里信任
+ * 2. 打开网易云音乐 APP（确保已登录）
+ * 3. 左上角菜单 → 创作者中心 → 音乐人中心（这一步会走 H5，通常能补上 __csrf）
+ * 4. 应先收到「重写规则已生效」心跳，随后收到「Cookie 获取成功」
+ * 5. 通知里会列出 MUSIC_U / __csrf / deviceId 三个字段各自到手没有。
+ *    只要 MUSIC_U 有了就能跑；__csrf 后续抓到会自动补进去并再通知一次。
+ *
+ * ============ 重新抓取 / 换账号 ============
+ * BoxJS 里清空 Netease_Musician_Cookie 即可；本版允许覆盖更新，
+ * 换账号会自动识别、整罐重置并通知，不需要手动清 Hit 标记。
  ******************************************/
 
 const NAME = "网易云音乐人";
 const CK_KEY = "Netease_Musician_Cookie";
 const UA_KEY = "Netease_Musician_UserAgent";
 const TS_KEY = "Netease_Musician_Cookie_Ts";
-const NOTIFY_THROTTLE_MS = 60 * 1000;
+const HIT_KEY = "Netease_Musician_Rule_Hit";
+const WARN_KEY = "Netease_Musician_Warn_Ts";
 
-/* ---------- 运行环境 ---------- */
-const isQX = typeof $task !== "undefined";
-const hasStore = typeof $persistentStore !== "undefined";
+const OK_THROTTLE_MS = 60 * 1000; // 成功通知节流
+const WARN_THROTTLE_MS = 10 * 60 * 1000; // 「抓到的请求没有 MUSIC_U」提醒节流
+
+/* ---------- 运行环境探测 ----------
+ * 按「存储 API 是否存在」判断，比判断 $task 更可靠：
+ * 某些 QX 版本在重写上下文里不注入 $task，但 $prefs 一定有。 */
+const hasPrefs = typeof $prefs !== "undefined"; // QuantumultX
+const hasStore = typeof $persistentStore !== "undefined"; // Surge / Loon / Stash / Shadowrocket
 
 function finish() {
-  // 重写脚本必须放行请求，否则圈X会挂起直到超时
+  // 重写脚本必须放行请求，否则圈X会把这条请求挂起到超时
   if (typeof $done !== "undefined") $done({});
 }
 
 function readVal(key) {
   try {
-    if (isQX) return $prefs.valueForKey(key);
+    if (hasPrefs) return $prefs.valueForKey(key);
     if (hasStore) return $persistentStore.read(key);
   } catch (e) {
     console.log(`[${NAME}] 读取 ${key} 失败: ${e}`);
@@ -78,7 +103,7 @@ function readVal(key) {
 
 function writeVal(val, key) {
   try {
-    if (isQX) return $prefs.setValueForKey(val, key);
+    if (hasPrefs) return $prefs.setValueForKey(val, key);
     if (hasStore) return $persistentStore.write(val, key);
   } catch (e) {
     console.log(`[${NAME}] 写入 ${key} 失败: ${e}`);
@@ -88,7 +113,7 @@ function writeVal(val, key) {
 
 function notify(title, subtitle, body) {
   try {
-    if (isQX) $notify(title, subtitle, body);
+    if (typeof $notify !== "undefined") $notify(title, subtitle, body);
     else if (typeof $notification !== "undefined") $notification.post(title, subtitle, body);
   } catch (e) {
     console.log(`[${NAME}] 通知失败: ${e}`);
@@ -100,7 +125,7 @@ function notify(title, subtitle, body) {
 
 // 大小写不敏感读取请求头
 function header(name) {
-  const h = ($request && $request.headers) || {};
+  const h = (typeof $request !== "undefined" && $request && $request.headers) || {};
   const want = String(name).toLowerCase();
   for (const k in h) {
     if (String(k).toLowerCase() === want) return h[k] == null ? "" : String(h[k]);
@@ -117,69 +142,184 @@ function storedClean(key) {
   return s;
 }
 
-// 从 cookie 串里取某个字段
-function pick(ck, name) {
-  const m = String(ck).match(new RegExp("(?:^|;\\s*)" + name + "=([^;]*)"));
-  return m ? m[1].trim() : "";
-}
-
 function mask(s) {
   const v = String(s);
   return v.length <= 16 ? v : `${v.slice(0, 8)}…${v.slice(-6)}`;
 }
 
+// 只留 host + path，通知里放全 URL 会被截断
+function shortUrl(u) {
+  const s = String(u || "");
+  const m = s.match(/^https?:\/\/([^/?#]+)([^?#]*)/);
+  if (!m) return s.slice(0, 80);
+  const p = m[2].length > 48 ? m[2].slice(0, 48) + "…" : m[2];
+  return m[1] + p;
+}
+
+function throttled(key, ms) {
+  const last = parseInt(storedClean(key) || "0", 10) || 0;
+  const now = Date.now();
+  if (now - last < ms) return true;
+  writeVal(String(now), key);
+  return false;
+}
+
+/* ---------- Cookie 字段罐 ----------
+ * 对应 Docker 项目里 context.cookies() + cookies_to_cookie_str() 的角色：
+ * 那边由浏览器维护这个罐，这边 MITM 只能看到单次请求，只好自己维护。 */
+
+// "a=1; b=2" → [["a","1"],["b","2"]]，保持出现顺序
+function parseJar(ck) {
+  const out = [];
+  String(ck || "")
+    .split(";")
+    .forEach((seg) => {
+      const s = seg.trim();
+      if (!s) return;
+      const i = s.indexOf("=");
+      if (i <= 0) return; // 没有字段名的碎片直接丢
+      const name = s.slice(0, i).trim();
+      if (!name) return;
+      out.push([name, s.slice(i + 1).trim()]);
+    });
+  return out;
+}
+
+function jarGet(jar, name) {
+  for (let i = jar.length - 1; i >= 0; i--) {
+    if (jar[i][0] === name) return jar[i][1];
+  }
+  return "";
+}
+
+/* 用 next 的字段更新 base：同名覆盖，新名追加，保持 base 原有顺序。
+ * 空值不覆盖已有值 —— 退出登录时 APP 可能发 MUSIC_U=，
+ * 那时宁可留着上一份能用的，也不要把罐洗空。 */
+function mergeJar(base, next) {
+  const out = base.map((kv) => [kv[0], kv[1]]);
+  next.forEach((kv) => {
+    const name = kv[0],
+      value = kv[1];
+    if (!value) return;
+    let at = -1;
+    for (let i = 0; i < out.length; i++) {
+      if (out[i][0] === name) {
+        at = i;
+        break;
+      }
+    }
+    if (at >= 0) out[at][1] = value;
+    else out.push([name, value]);
+  });
+  return out;
+}
+
+// 与 login.py:81-90 一致：只拼 name=value，用 "; " 连接
+function serializeJar(jar) {
+  return jar.map((kv) => kv[0] + "=" + kv[1]).join("; ");
+}
+
+// 通知里的字段清单，用户一眼能看出还缺什么
+function fieldReport(jar) {
+  const musicU = jarGet(jar, "MUSIC_U");
+  const csrf = jarGet(jar, "__csrf");
+  const device = jarGet(jar, "deviceId");
+  return (
+    `MUSIC_U: ${musicU ? "✅ " + mask(musicU) : "❌ 未获取"}\n` +
+    `__csrf: ${csrf ? "✅ " + mask(csrf) : "⏳ 未获取（可选，task.js 会自造）"}\n` +
+    `deviceId: ${device ? "✅ " + mask(device) : "⏳ 未获取（可选）"}\n` +
+    `字段数: ${jar.length}`
+  );
+}
+
 /* ---------- 主流程 ---------- */
 !(() => {
+  /* 场景 A：脚本被当成定时任务跑了，没有 $request。
+   * 原版在这里静默返回，本版明确告警 —— 这是最常见的配置错放。 */
   if (typeof $request === "undefined") {
-    console.log(`[${NAME}] 未检测到 $request，本脚本只能作为「重写 / http-request」运行，不能当定时任务跑`);
+    notify(
+      NAME,
+      "配置错误 ❌",
+      "本脚本必须放在 [rewrite_local]（圈X）或 [Script] http-request（Loon）下，" +
+        "不能放进 [task_local] 定时任务。定时任务要跑的是 task.js。"
+    );
     return finish();
   }
 
+  const url = $request.url || "";
   const cookie = header("cookie").trim();
   const ua = header("user-agent").trim();
-
-  if (!cookie) {
-    console.log(`[${NAME}] 该请求没有 Cookie 头，跳过。URL: ${$request.url || ""}`);
-    return finish();
-  }
-
-  const musicU = pick(cookie, "MUSIC_U");
-  if (!musicU) {
-    console.log(`[${NAME}] Cookie 中没有 MUSIC_U，判定为未登录，已跳过写入`);
-    notify(NAME, "Cookie 获取失败 ❌", "抓到的 Cookie 里没有 MUSIC_U，请确认 APP 已登录后重新进入「收支记录」页面");
-    return finish();
-  }
-
   const oldCk = storedClean(CK_KEY);
-  const oldMusicU = pick(oldCk, "MUSIC_U");
+  const oldJar = parseJar(oldCk);
+  const oldMusicU = jarGet(oldJar, "MUSIC_U");
 
-  if (cookie === oldCk) {
-    console.log(`[${NAME}] Cookie 未变化，跳过写入`);
+  /* 首次命中心跳：这是把「没反应」拆开的关键诊断信号。
+   * 只在规则第一次生效时发一次，之后不再打扰。 */
+  if (!storedClean(HIT_KEY)) {
+    writeVal(String(Date.now()), HIT_KEY);
+    notify(
+      NAME,
+      "重写规则已生效 ✅",
+      `脚本已被调用，说明 MITM 与证书都正常。\n` +
+        `命中: ${shortUrl(url)}\n` +
+        `该请求${cookie ? (jarGet(parseJar(cookie), "MUSIC_U") ? "含 MUSIC_U，马上会有获取成功通知" : "有 Cookie 但无 MUSIC_U") : "无 Cookie 头"}\n` +
+        `若迟迟收不到「获取成功」，请在 APP 里刷新需要登录的页面。`
+    );
+  }
+
+  /* 场景 B：这条请求没有 Cookie 头。广匹配下这很常见（图片、配置、CDN 等），
+   * 属正常现象，只在「一次都还没抓到过」时才限流提醒。 */
+  if (!cookie) {
+    console.log(`[${NAME}] 无 Cookie 头，跳过。URL: ${shortUrl(url)}`);
+    if (!oldCk && !throttled(WARN_KEY, WARN_THROTTLE_MS)) {
+      notify(NAME, "仍未抓到 Cookie ⏳", `规则在正常命中，但请求不带 Cookie。\n最近命中: ${shortUrl(url)}\n请确认 APP 已登录，并打开需要登录的页面。`);
+    }
     return finish();
   }
 
-  const okCk = writeVal(cookie, CK_KEY);
+  const reqJar = parseJar(cookie);
+  const reqMusicU = jarGet(reqJar, "MUSIC_U");
+
+  /* 场景 C：这条请求没有 MUSIC_U，且历史上也从没抓到过 —— 全程未登录态。
+   * 注意这里不再因为「本次请求没有 MUSIC_U」就丢弃它：只要罐里已经有
+   * MUSIC_U，本次请求的其它字段（比如 __csrf）照样值得合并进去。 */
+  if (!reqMusicU && !oldMusicU) {
+    console.log(`[${NAME}] Cookie 中无 MUSIC_U 且无历史记录，判定未登录，跳过写入。URL: ${shortUrl(url)}`);
+    if (!throttled(WARN_KEY, WARN_THROTTLE_MS)) {
+      notify(NAME, "Cookie 无效 ❌", `抓到的 Cookie 里没有 MUSIC_U（未登录态）。\n命中: ${shortUrl(url)}\n请确认 APP 已登录后重新进入音乐人中心。`);
+    }
+    return finish();
+  }
+
+  /* 场景 D：合并。换账号则整罐重置，避免两个账号的字段混在一起。 */
+  const isNewAccount = !!reqMusicU && !!oldMusicU && reqMusicU !== oldMusicU;
+  const isFirstTime = !!reqMusicU && !oldMusicU;
+  const newJar = isNewAccount ? reqJar : mergeJar(oldJar, reqJar);
+  const newCk = serializeJar(newJar);
+
+  /* 场景 E：合并后没有任何变化，静默跳过。
+   * 广匹配下绝大多数请求都会走到这里，绝不能发通知。 */
+  if (newCk === oldCk) {
+    console.log(`[${NAME}] 字段无变化，跳过写入`);
+    return finish();
+  }
+
+  const okCk = writeVal(newCk, CK_KEY);
   if (ua) writeVal(ua, UA_KEY);
 
   if (!okCk) {
-    notify(NAME, "Cookie 写入失败 ❌", "持久化存储写入失败，请检查代理软件的存储权限");
+    notify(NAME, "Cookie 写入失败 ❌", "持久化存储写入失败，请检查代理软件的存储权限。");
     return finish();
   }
 
-  const isNewAccount = musicU !== oldMusicU;
-  const lastTs = parseInt(storedClean(TS_KEY) || "0", 10) || 0;
-  const now = Date.now();
-  const shouldNotify = isNewAccount || now - lastTs > NOTIFY_THROTTLE_MS;
+  /* 关键字段刚补齐时必须通知（不受节流限制）—— 这正是本版的价值所在：
+   * 用户能看到 __csrf 是在哪一步补上的。 */
+  const gainedCsrf = !!jarGet(newJar, "__csrf") && !jarGet(oldJar, "__csrf");
+  const gainedDevice = !!jarGet(newJar, "deviceId") && !jarGet(oldJar, "deviceId");
 
-  if (shouldNotify) {
-    writeVal(String(now), TS_KEY);
-    notify(
-      NAME,
-      "Cookie 获取成功 ✅",
-      `${isNewAccount ? (oldMusicU ? "已切换账号" : "首次获取") : "已刷新"}\n` +
-        `MUSIC_U: ${mask(musicU)}\n` +
-        `字段数: ${cookie.split(";").filter(Boolean).length}`
-    );
+  if (isNewAccount || isFirstTime || gainedCsrf || gainedDevice || !throttled(TS_KEY, OK_THROTTLE_MS)) {
+    const what = isNewAccount ? "已切换账号" : isFirstTime ? "首次获取" : gainedCsrf ? "已补齐 __csrf 字段" : gainedDevice ? "已补齐 deviceId 字段" : "已刷新";
+    notify(NAME, "Cookie 获取成功 ✅", `${what}\n` + fieldReport(newJar) + `\n来源: ${shortUrl(url)}`);
   } else {
     console.log(`[${NAME}] Cookie 已刷新（通知节流中）`);
   }
