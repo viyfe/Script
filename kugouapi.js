@@ -1,15 +1,9 @@
 const $ = new Env("酷狗音乐");
 
-const KUGOU_SCRIPT_VERSION = "1.0.9";
+const KUGOU_SCRIPT_VERSION = "1.1.0";
 const KUGOU_API_URL = "https://api.chksz.com/api/kugou_music";
 const KUGOU_API_KEY = "YOUR_API_KEY";
-const KUGOU_AUDIO_QUALITIES = ["master", "hires", "flac", "320k", "128k"];
-const KUGOU_RUNTIME_STATE_KEY = "kugou_music_runtime_v4";
-const KUGOU_CACHE_TTL = 30 * 60 * 1000;
-const KUGOU_QUALITY_STATE_TTL = 10 * 60 * 1000;
-const KUGOU_REQUEST_INTERVAL = 3200;
-const KUGOU_REQUEST_LOCK_TTL = 2500;
-const KUGOU_ATTEMPTS_PER_QUALITY = 2;
+const KUGOU_AUDIO_QUALITY = "flac";
 
 const requestUrl = $request.url;
 
@@ -27,11 +21,7 @@ function getArgumentValue(key) {
 }
 
 function getApiKey() {
-  return (
-    getArgumentValue("apikey") ||
-    $.read("kugou_music_apikey") ||
-    KUGOU_API_KEY
-  );
+  return getArgumentValue("apikey") || $.read("kugou_music_apikey") || KUGOU_API_KEY;
 }
 
 function setVip(data) {
@@ -115,136 +105,11 @@ function getResponseData(payload) {
 
 function getAudioExtension(data, mediaUrl) {
   const format = String(data.format || data.bitrate || "").toLowerCase();
-  if (["mp3", "flac", "m4a", "aac", "ogg", "wav"].includes(format)) {
-    return format;
-  }
+  if (["mp3", "flac", "m4a", "aac", "ogg", "wav"].includes(format)) return format;
 
   const path = String(mediaUrl).split("?")[0];
   const match = path.match(/\.([a-z0-9]{2,5})$/i);
-  return match ? match[1].toLowerCase() : "flac";
-}
-
-function createApiUrl(hash, quality, apiKey) {
-  const query = [
-    `id=${encodeURIComponent(hash)}`,
-    `size=${encodeURIComponent(quality)}`,
-    "type=json",
-    `apikey=${encodeURIComponent(apiKey)}`,
-  ].join("&");
-  return `${KUGOU_API_URL}?${query}`;
-}
-
-async function requestSong(hash, quality, apiKey) {
-  const response = await $.fetch(createApiUrl(hash, quality, apiKey), {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Quantumult X",
-    },
-  });
-  const payload = $.toObj(response.body, {});
-  const data = getResponseData(payload);
-  return { response, payload, data };
-}
-
-function loadRuntimeState() {
-  const saved = $.toObj($.read(KUGOU_RUNTIME_STATE_KEY), {});
-  const state = saved && typeof saved === "object" ? saved : {};
-  return {
-    nextRequestAt: Number(state.nextRequestAt) || 0,
-    cooldownUntil: Number(state.cooldownUntil) || 0,
-    cache: state.cache && typeof state.cache === "object" ? state.cache : {},
-    quality: state.quality && typeof state.quality === "object" ? state.quality : {},
-    locks: state.locks && typeof state.locks === "object" ? state.locks : {},
-  };
-}
-
-function pruneRuntimeState(state, now = Date.now()) {
-  for (const [hash, item] of Object.entries(state.cache)) {
-    if (!item?.expiresAt || item.expiresAt <= now) delete state.cache[hash];
-  }
-  for (const [hash, item] of Object.entries(state.quality)) {
-    if (!item?.expiresAt || item.expiresAt <= now) delete state.quality[hash];
-  }
-  for (const [hash, expiresAt] of Object.entries(state.locks)) {
-    if (!expiresAt || expiresAt <= now) delete state.locks[hash];
-  }
-
-  const cacheEntries = Object.entries(state.cache).sort(
-    (left, right) => Number(right[1]?.expiresAt || 0) - Number(left[1]?.expiresAt || 0),
-  );
-  state.cache = Object.fromEntries(cacheEntries.slice(0, 30));
-  return state;
-}
-
-function saveRuntimeState(state) {
-  pruneRuntimeState(state);
-  return $.write(JSON.stringify(state), KUGOU_RUNTIME_STATE_KEY);
-}
-
-function getQualityState(state, hash, now = Date.now()) {
-  const saved = state.quality[hash];
-  if (!saved || saved.expiresAt <= now) return { index: 0, attempts: 0 };
-  return {
-    index: Math.min(
-      Math.max(Number(saved.index) || 0, 0),
-      KUGOU_AUDIO_QUALITIES.length - 1,
-    ),
-    attempts: Math.min(
-      Math.max(Number(saved.attempts) || 0, 0),
-      KUGOU_ATTEMPTS_PER_QUALITY - 1,
-    ),
-  };
-}
-
-function getNextQualityState(current) {
-  const attempts = current.attempts + 1;
-  if (attempts < KUGOU_ATTEMPTS_PER_QUALITY) {
-    return { index: current.index, attempts };
-  }
-  return {
-    index: Math.min(current.index + 1, KUGOU_AUDIO_QUALITIES.length - 1),
-    attempts: 0,
-  };
-}
-
-function isQualityUnavailable(code, message) {
-  const text = String(message || "");
-  return /(?:当前|该|此)?音质.*(?:不支持|不存在|暂无|未找到|无资源)|(?:没有|无|找不到).*音质/i.test(text);
-}
-
-function createCacheData(data) {
-  return {
-    url: data.url,
-    format: data.format || "",
-    bitrate: data.bitrate || "",
-    id: data.id || "",
-  };
-}
-
-function getTemporaryCooldown(code, response, reason) {
-  const status = Number(code) || Number(response?.statusCode || response?.status) || 0;
-  const retryAfter = Number(
-    response?.headers?.["Retry-After"] || response?.headers?.["retry-after"],
-  );
-  if (status === 429) return (retryAfter > 0 ? retryAfter : 65) * 1000;
-  return 0;
-}
-
-function applySongData(data, hash, quality, source) {
-  const original = $.toObj($response.body, {});
-  const mediaUrl = data.url;
-
-  Object.assign(original, {
-    url: [mediaUrl, mediaUrl],
-    backupUrl: [mediaUrl],
-    status: 1,
-    priv_status: 1,
-    extName: getAudioExtension(data, mediaUrl),
-    hash: String(data.id || hash).toUpperCase(),
-  });
-
-  $.log(`歌曲解析成功，音质=${quality}，来源=${source}，格式=${data.format || data.bitrate || "未知"}`);
-  return $.done({ body: JSON.stringify(original) });
+  return match ? match[1].toLowerCase() : "master";
 }
 
 function formatError(error) {
@@ -256,15 +121,11 @@ function formatError(error) {
     if (json && json !== "{}") return json;
   } catch (_) {}
 
-  const details = [];
-  for (const key of ["error", "message", "localizedDescription", "statusCode", "status"]) {
-    if (error?.[key] !== undefined) details.push(`${key}=${error[key]}`);
-  }
-  return details.length ? details.join(", ") : String(error);
+  return String(error);
 }
 
 async function replaceSongUrl() {
-  const hash = String(getQueryParam(requestUrl, "hash") || "").toLowerCase();
+  const hash = getQueryParam(requestUrl, "hash");
   if (!hash) {
     $.log("播放请求中没有 hash，保留原响应");
     return $.done({});
@@ -272,164 +133,49 @@ async function replaceSongUrl() {
 
   const apiKey = getApiKey();
   if (!apiKey || apiKey === "YOUR_API_KEY") {
-    $.logErr("未配置 apikey，请设置 KUGOU_API_KEY、脚本参数 apikey，或持久化键 kugou_music_apikey");
+    $.logErr("未配置 apikey，请在 BoxJS 的 kugou_music 中填写 API Key");
     return $.done({});
   }
 
-  const now = Date.now();
-  const state = pruneRuntimeState(loadRuntimeState(), now);
-  const cached = state.cache[hash];
-  if (cached?.data?.url && cached.expiresAt > now) {
-    return applySongData(cached.data, hash, cached.quality, "缓存");
-  }
-
-  if (state.locks[hash] > now) {
-    $.log(`同一歌曲正在解析，跳过重复请求，hash=${hash}`);
-    return $.done({});
-  }
-
-  if (state.cooldownUntil > now) {
-    $.log(`接口限流冷却中，${Math.ceil((state.cooldownUntil - now) / 1000)} 秒后再试`);
-    return $.done({});
-  }
-
-  const currentQualityState = getQualityState(state, hash, now);
-  const qualityIndex = currentQualityState.index;
-  const quality = KUGOU_AUDIO_QUALITIES[qualityIndex];
-  const nextQualityState = getNextQualityState(currentQualityState);
-  const scheduledAt = Math.max(now, state.nextRequestAt);
-  const waitTime = scheduledAt - now;
-  if (waitTime > KUGOU_REQUEST_INTERVAL + 100) {
-    $.log(`已有其他歌曲排队，跳过本次重复触发，hash=${hash}`);
-    return $.done({});
-  }
-
-  state.locks[hash] = scheduledAt + KUGOU_REQUEST_LOCK_TTL;
-  state.nextRequestAt = scheduledAt + KUGOU_REQUEST_INTERVAL;
-  state.quality[hash] = {
-    ...nextQualityState,
-    expiresAt: now + KUGOU_QUALITY_STATE_TTL,
-  };
-  saveRuntimeState(state);
-
-  if (waitTime > 0) {
-    $.log(`接口节流，等待 ${Math.ceil(waitTime / 1000)} 秒后尝试 ${quality}`);
-    await $.wait(waitTime + 25);
-
-    const resumedAt = Date.now();
-    const resumedState = pruneRuntimeState(loadRuntimeState(), resumedAt);
-    const resumedCache = resumedState.cache[hash];
-    if (resumedCache?.data?.url && resumedCache.expiresAt > resumedAt) {
-      delete resumedState.locks[hash];
-      saveRuntimeState(resumedState);
-      return applySongData(resumedCache.data, hash, resumedCache.quality, "等待期间缓存");
-    }
-    if (resumedState.cooldownUntil > resumedAt) {
-      delete resumedState.locks[hash];
-      saveRuntimeState(resumedState);
-      $.log("等待期间触发接口限流冷却，保留原响应");
-      return $.done({});
-    }
-  }
-
-  $.log(`脚本版本=${KUGOU_SCRIPT_VERSION}，开始解析歌曲，hash=${hash}，音质=${quality}，本档尝试=${currentQualityState.attempts + 1}/${KUGOU_ATTEMPTS_PER_QUALITY}，apikey=${maskSecret(apiKey)}`);
+  $.log(`脚本版本=${KUGOU_SCRIPT_VERSION}，解析歌曲，音质=${KUGOU_AUDIO_QUALITY}，hash=${hash}`);
 
   try {
-    const { response, payload, data } = await requestSong(hash, quality, apiKey);
-    const completedAt = Date.now();
-    const latestState = pruneRuntimeState(loadRuntimeState(), completedAt);
-    delete latestState.locks[hash];
+    const query = [
+      `id=${encodeURIComponent(hash)}`,
+      `size=${KUGOU_AUDIO_QUALITY}`,
+      "type=json",
+      `apikey=${encodeURIComponent(apiKey)}`,
+    ].join("&");
+    const response = await $.fetch(`${KUGOU_API_URL}?${query}`, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Quantumult X",
+      },
+    });
+    const payload = $.toObj(response.body, {});
+    const data = getResponseData(payload);
+    const status = response.statusCode || response.status || "unknown";
 
-    $.log(`解析接口响应：HTTP ${response.statusCode || response.status || "未知"}，code=${payload.code ?? "未知"}，msg=${payload.msg || "无"}`);
+    $.log(`解析接口响应：HTTP ${status}，code=${payload.code ?? "unknown"}，msg=${payload.msg || "none"}`);
 
-    if (Number(payload.code) === 200 && data?.url) {
-      latestState.cache[hash] = {
-        data: createCacheData(data),
-        quality,
-        expiresAt: completedAt + KUGOU_CACHE_TTL,
-      };
-      latestState.quality[hash] = {
-        index: qualityIndex,
-        attempts: 0,
-        expiresAt: completedAt + KUGOU_QUALITY_STATE_TTL,
-      };
-      latestState.cooldownUntil = 0;
-      saveRuntimeState(latestState);
-      return applySongData(data, hash, quality, "接口");
+    if (Number(payload.code) !== 200 || !data?.url) {
+      throw new Error(payload.msg || `接口未返回歌曲地址，HTTP ${status}`);
     }
 
-    const message = payload.msg || `接口未返回歌曲地址，HTTP ${response.statusCode || response.status}`;
-    const cooldown = getTemporaryCooldown(payload.code, response, message);
-    if (cooldown > 0) {
-      latestState.cooldownUntil = completedAt + cooldown;
-      latestState.quality[hash] = {
-        index: qualityIndex,
-        attempts: currentQualityState.attempts,
-        expiresAt: completedAt + KUGOU_QUALITY_STATE_TTL,
-      };
-      saveRuntimeState(latestState);
-      $.log(`接口 429 限流，保持音质=${quality}，冷却 ${Math.ceil(cooldown / 1000)} 秒`);
-      throw new Error(message);
-    }
-
-    if (isQualityUnavailable(payload.code, message)) {
-      const lowerQualityIndex = Math.min(
-        qualityIndex + 1,
-        KUGOU_AUDIO_QUALITIES.length - 1,
-      );
-      latestState.quality[hash] = {
-        index: lowerQualityIndex,
-        attempts: 0,
-        expiresAt: completedAt + KUGOU_QUALITY_STATE_TTL,
-      };
-      saveRuntimeState(latestState);
-      if (lowerQualityIndex > qualityIndex) {
-        $.log(`接口明确无 ${quality}，下次仅降一档到 ${KUGOU_AUDIO_QUALITIES[lowerQualityIndex]}`);
-      }
-      throw new Error(message);
-    }
-
-    if ([400, 401, 403, 405].includes(Number(payload.code))) {
-      latestState.quality[hash] = {
-        index: qualityIndex,
-        attempts: currentQualityState.attempts,
-        expiresAt: completedAt + KUGOU_QUALITY_STATE_TTL,
-      };
-      saveRuntimeState(latestState);
-      throw new Error(message);
-    }
-
-    saveRuntimeState(latestState);
-    if (nextQualityState.index > qualityIndex) {
-      $.log(`当前 ${quality} 已尝试 ${KUGOU_ATTEMPTS_PER_QUALITY} 次，下次按顺序尝试 ${KUGOU_AUDIO_QUALITIES[nextQualityState.index]}`);
-    } else {
-      $.log(`当前 ${quality} 首次失败，下次仍重试 ${quality}`);
-    }
-    throw new Error(message);
+    const original = $.toObj($response.body, {});
+    Object.assign(original, {
+      url: [data.url, data.url],
+      backupUrl: [data.url],
+      status: 1,
+      priv_status: 1,
+      extName: getAudioExtension(data, data.url),
+      hash: String(data.id || hash).toUpperCase(),
+    });
+    return $.done({ body: JSON.stringify(original) });
   } catch (error) {
-    const reason = formatError(error);
-    const failedAt = Date.now();
-    const failedState = pruneRuntimeState(loadRuntimeState(), failedAt);
-    delete failedState.locks[hash];
-    const cooldown = getTemporaryCooldown(0, null, reason);
-    if (cooldown > 0) {
-      failedState.cooldownUntil = Math.max(failedState.cooldownUntil, failedAt + cooldown);
-    }
-    saveRuntimeState(failedState);
-    $.logErr(`歌曲解析失败：${reason}`);
-    if (/timeout|timed out|connect|network|dns|ssl|tls/i.test(reason)) {
-      $.log("请检查 Quantumult X 中 api.chksz.com 的分流、DNS 和网络连通性");
-    } else {
-      $.log("解析服务或其上游暂时不可用，请稍后重试");
-    }
+    $.logErr(`歌曲解析失败：${formatError(error)}`);
     return $.done({});
   }
-}
-
-function maskSecret(secret) {
-  const value = String(secret || "");
-  if (value.length <= 8) return `${value.slice(0, 2)}***`;
-  return `${value.slice(0, 4)}***${value.slice(-4)}`;
 }
 
 if (
@@ -513,6 +259,7 @@ if (
   $.done({});
 }
 
+
 function Env(name) {
   return new (class {
     constructor() {
@@ -549,18 +296,6 @@ function Env(name) {
         if (typeof $persistentStore !== "undefined") return $persistentStore.read(key);
       } catch (_) {}
       return null;
-    }
-
-    write(value, key) {
-      try {
-        if (this.isQuanX()) return $prefs.setValueForKey(value, key);
-        if (typeof $persistentStore !== "undefined") return $persistentStore.write(value, key);
-      } catch (_) {}
-      return false;
-    }
-
-    wait(milliseconds) {
-      return new Promise((resolve) => setTimeout(resolve, milliseconds));
     }
 
     async fetch(url, options = {}) {
