@@ -182,93 +182,166 @@ function randomCsrfToken() {
   while (s.length < 32) s += Math.floor(Math.random() * 16).toString(16);
   return s.slice(0, 32);
 }
-// 账密登录兜底：对应 Docker 项目 LOGIN_METHOD='api' / core/netease.py:196-210 
+// 登录用的通用 weapi POST + Set-Cookie 提取 
+function cookieFromHeaders(h) {
+  let raw = "";
+  for (const k in h || {})
+    if (String(k).toLowerCase() === "set-cookie") {
+      raw = h[k];
+      break;
+    }
+  const list = Array.isArray(raw) ? raw : String(raw || "").split(/,(?=[^;,]+=)/);
+  const jar = {};
+  list.forEach(one => {
+    const kv = String(one).split(";")[0].trim();
+    const i = kv.indexOf("=");
+    if (i > 0 && kv.slice(i + 1).trim()) jar[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+  });
+  return Object.keys(jar).map(k => k + "=" + jar[k]).join("; ");
+}
+async function weapiPostRaw(url, payload) {
+  const opts = {
+    url: url,
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      "user-agent": userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+      referer: "https://music.163.com/"
+    },
+    body: weapiEncrypt(payload)
+  };
+  const r = await new Promise(resolve => {
+    try {
+      if ($.isNode()) {
+        fetch(opts.url, {
+          method: "post",
+          headers: opts.headers,
+          body: opts.body
+        }).then(async res => resolve({
+          hdrs: {
+            "set-cookie": res.headers.getSetCookie ? res.headers.getSetCookie() : []
+          },
+          data: await res.text()
+        })).catch(err => resolve({
+          err: err
+        }));
+      } else {
+        $.http.post(opts).then(resp => resolve({
+          hdrs: resp && resp.headers || {},
+          data: resp && resp.body
+        }), err => resolve({
+          err: err
+        }));
+      }
+    } catch (e) {
+      resolve({
+        err: e
+      });
+    }
+  });
+  if (r.err) return {
+    err: String(r.err)
+  };
+  return {
+    body: $.toObj(r.data) || {},
+    ck: cookieFromHeaders(r.hdrs)
+  };
+}
+// 短信验证码登录：网易云已停用密码登录，这是唯一还开放的自助方式 
+async function sendLoginCaptcha(phone) {
+  const r = await weapiPostRaw("https://music.163.com/weapi/sms/captcha/sent", {
+    cellphone: String(phone),
+    ctcode: "86"
+  });
+  if (r.err) {
+    console.log("\n❌ 发送验证码失败: " + r.err);
+    return false;
+  }
+  if (r.body.code === 200) {
+    console.log("\n📱 验证码已发送到 " + phone);
+    $.msg($.name, "验证码已发送 📱", "请查收短信，把验证码填进 BoxJS 的「短信验证码」一栏，\n然后再手动跑一次本任务即可登录。\n验证码约 5 分钟内有效。");
+    return true;
+  }
+  const msg = r.body.message || r.body.msg || "code=" + r.body.code;
+  console.log("\n❌ 发送验证码被拒: " + msg);
+  $.msg($.name, "发送验证码失败 ❌", msg);
+  return false;
+}
+
+function acceptLoginResult(r, how) {
+  if (r.err) {
+    console.log("\n❌ " + how + "登录请求失败: " + r.err);
+    return "";
+  }
+  const body = r.body || {};
+  if (body.code !== 200 || !body.account) {
+    const msg = body.message || body.msg || "code=" + body.code;
+    console.log("\n❌ " + how + "登录被拒: " + msg);
+    return "";
+  }
+  if (!/(?:^|;\s*)MUSIC_U=[^;\s]/.test(r.ck || "")) {
+    console.log("\n❌ " + how + "登录成功但响应里没有 MUSIC_U（代理软件可能没回传 Set-Cookie）");
+    $.msg($.name, "登录未拿到 Cookie ❌", "登录接口返回成功，但响应头里取不到 MUSIC_U。\n请改用 cookie.js 抓包方式。");
+    return "";
+  }
+  $.setdata(r.ck, "Netease_Musician_Cookie");
+  const nick = body.profile && body.profile.nickname || "";
+  console.log("\n✅ " + how + "登录成功: " + nick + " (uid=" + body.account.id + ")");
+  $.msg($.name, how + "登录成功 ✅", nick + "\nCookie 已写入存储，本次任务继续执行。");
+  return r.ck;
+}
+// 登录兜底：验证码优先 → 密码 → 只有手机号则发验证码 
 async function loginByPassword() {
   const phone = $.isNode() ? process.env.Netease_Musician_Phone : $.getdata("Netease_Musician_Phone");
   const password = $.isNode() ? process.env.Netease_Musician_Password : $.getdata("Netease_Musician_Password");
-  if (!phone || !password || phone === "undefined" || password === "undefined") return "";
-  console.log("\n🔑 检测到已配置账密，尝试登录换取 Cookie...");
+  const captcha = $.isNode() ? process.env.Netease_Musician_Captcha : $.getdata("Netease_Musician_Captcha");
+  const has = v => v && v !== "undefined" && v !== "null" && String(v).trim() !== "";
+  if (!has(phone)) return "";
   try {
-    const pwMd5 = $.CryptoJS.MD5(String(password)).toString();
-    const opts = {
-      url: "https://music.163.com/weapi/login/cellphone?csrf_token=",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        "user-agent": userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
-        referer: "https://music.163.com/"
-      },
-      body: weapiEncrypt({
-        phone: String(phone),
-        password: pwMd5,
+    // 路线 1：填了短信验证码 → 用验证码登录（网易云目前仍开放这条）
+    if (has(captcha)) {
+      console.log("\n🔑 检测到短信验证码，尝试登录...");
+      const r = await weapiPostRaw("https://music.163.com/weapi/login/cellphone", {
+        phone: String(phone).trim(),
+        captcha: String(captcha).trim(),
+        countrycode: "86",
         rememberLogin: "true"
-      })
-    };
-    const r = await new Promise(resolve => {
-      const cb = (err, resp, data) => resolve({
-        err,
-        resp,
-        data
       });
-      try {
-        if ($.isNode()) {
-          fetch(opts.url, {
-            method: "post",
-            headers: opts.headers,
-            body: opts.body
-          }).then(async res => resolve({
-            resp: {
-              headers: {
-                "set-cookie": res.headers.getSetCookie ? res.headers.getSetCookie() : []
-              }
-            },
-            data: await res.text()
-          })).catch(err => resolve({
-            err
-          }));
-        } else $.http.post(opts).then(resp => cb(null, resp, resp.body), err => cb(err));
-      } catch (e) {
-        resolve({
-          err: e
-        });
+      // 验证码一次性，无论成败都清掉，避免下次拿过期码反复失败
+      $.setdata("", "Netease_Musician_Captcha");
+      const ck = acceptLoginResult(r, "验证码");
+      if (ck) return ck;
+      const m = (r.body || {}).message || "";
+      $.msg($.name, "验证码登录失败 ❌", (m || "验证码可能已过期") + "\n请重新跑一次任务获取新验证码。");
+      return "";
+    }
+
+    // 路线 2：填了密码 → 试密码登录。网易云多数账号已封这条路，
+    // 返回「请切换其他登录方式或升级新版本再试」即是被封，此时自动转发短信。
+    if (has(password)) {
+      console.log("\n🔑 检测到已配置账密，尝试登录换取 Cookie...");
+      const pwMd5 = $.CryptoJS.MD5(String(password)).toString();
+      const r = await weapiPostRaw("https://music.163.com/weapi/login/cellphone", {
+        phone: String(phone).trim(),
+        password: pwMd5,
+        countrycode: "86",
+        rememberLogin: "true"
+      });
+      const ck = acceptLoginResult(r, "账密");
+      if (ck) return ck;
+      const msg = (r.body || {}).message || (r.body || {}).msg || "";
+      if (/切换其他登录方式|升级新版本/.test(msg)) {
+        console.log("\n⚠️ 网易云已停用密码登录，自动改走短信验证码...");
+        await sendLoginCaptcha(String(phone).trim());
+      } else {
+        $.msg($.name, "账密登录失败 ❌", (msg || "登录被拒") + "\n可清空密码栏，改用短信验证码登录。");
       }
-    });
-    if (r.err) {
-      console.log("\n❌ 登录请求失败: " + r.err);
       return "";
     }
-    const body = $.toObj(r.data) || {};
-    if (body.code !== 200 || !body.account) {
-      const msg = body.message || body.msg || "code=" + body.code;
-      console.log("\n❌ 登录被拒: " + msg);
-      $.msg($.name, "账密登录失败 ❌", msg + "\n若提示需要验证，说明触发了风控，请改用 cookie.js 抓包。");
-      return "";
-    }
-    // 从响应头取 Set-Cookie，等价于 Docker 侧的 session.cookies
-    const h = r.resp && r.resp.headers || {};
-    let raw = "";
-    for (const k in h)
-      if (String(k).toLowerCase() === "set-cookie") {
-        raw = h[k];
-        break;
-      }
-    const list = Array.isArray(raw) ? raw : String(raw || "").split(/,(?=[^;,]+=)/);
-    const jar = {};
-    list.forEach(one => {
-      const kv = String(one).split(";")[0].trim();
-      const i = kv.indexOf("=");
-      if (i > 0 && kv.slice(i + 1).trim()) jar[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
-    });
-    const ck = Object.keys(jar).map(k => k + "=" + jar[k]).join("; ");
-    if (!/(?:^|;\s*)MUSIC_U=[^;\s]/.test(ck)) {
-      console.log("\n❌ 登录成功但响应里没有 MUSIC_U（可能是代理软件未回传 Set-Cookie）");
-      $.msg($.name, "账密登录未拿到 Cookie ❌", "登录接口返回成功，但响应头里取不到 MUSIC_U。\n请改用 cookie.js 抓包方式。");
-      return "";
-    }
-    $.setdata(ck, "Netease_Musician_Cookie");
-    const nick = body.profile && body.profile.nickname || phone;
-    console.log("\n✅ 账密登录成功: " + nick + " (uid=" + body.account.id + ")");
-    $.msg($.name, "账密登录成功 ✅", nick + "\nCookie 已写入存储，本次任务继续执行。");
-    return ck;
+
+    // 路线 3：只填了手机号 → 直接发验证码
+    console.log("\n🔑 只配置了手机号，发送短信验证码...");
+    await sendLoginCaptcha(String(phone).trim());
+    return "";
   } catch (e) {
     console.log("\n❌ 登录异常: " + (e && e.message ? e.message : String(e)));
     return "";
