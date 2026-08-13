@@ -20,9 +20,13 @@
  *   · APP 内嵌网页(H5)请求：带 MUSIC_U + __csrf
  *     host 是**裸 music.163.com**（没有子域）
  *
- * 所以重写规则的 host 部分必须写成 (?:[\w-]+\.)?music\.163\.com —— 子域可有可无。
+ * 所以重写规则的 host 部分必须写成 [\w.-]*music\.163\.com —— 子域可有可无。
  * 写成 [\w-]+\.music\.163\.com（强制要有子域）会把裸 music.163.com 排除掉，
  * 而那正是唯一能拿到 __csrf 的来源，原作者的窄规则针对的也是这个 host。
+ *
+ * 这里刻意不用 (?:[\w-]+\.)? 这种非捕获分组：圈X 的重写规则用的正则引擎没有
+ * 公开文档说明支持哪些语法，万一不支持，规则会**静默不命中**（不报错、没日志），
+ * 排查起来和「证书没装好」一模一样。[\w.-]* 只用基础字符类，风险最低。
  *
  * 旧版把「最后看到的那一份」整串覆盖写入，所以存进去的经常缺字段：
  * 抓到 eapi 请求 → 存的 CK 里没有 __csrf → task.js 的 formatCookie 取不到
@@ -44,15 +48,19 @@
  * core.py:255-260 的做法在缺失时自造一个随机 csrf_token。
  *
  * ============ 圈X 配置 ============
- * [rewrite_local]
- * ^https?:\/\/(?:[\w-]+\.)?music\.163\.com\/ url script-request-header cookie.js
+ * 注意 script-request-header 后面只写**文件名**，不写路径 —— 脚本要放进
+ * 圈X 的 Scripts 文件夹（「我的 iPhone」或 iCloud Drive 里的那个）。
+ * 若你是用 URL 远程引用，那就把整个 https:// 地址写在那个位置。
  *
- * [MITM]
+ * [rewrite_local]
+ * ^https?:\/\/[\w.-]*music\.163\.com\/ url script-request-header cookie.js
+ *
+ * [mitm]
  * hostname = *.music.163.com, music.163.com
  *
  * ============ Loon 配置 ============
  * [Script]
- * http-request ^https?:\/\/(?:[\w-]+\.)?music\.163\.com\/ script-path=cookie.js, requires-body=false, tag=网易云音乐人获取Cookie
+ * http-request ^https?:\/\/[\w.-]*music\.163\.com\/ script-path=cookie.js, requires-body=false, tag=网易云音乐人获取Cookie
  *
  * [MitM]
  * hostname = *.music.163.com, music.163.com
