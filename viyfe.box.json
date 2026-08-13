@@ -1,7 +1,7 @@
 {
   "id": "weifv",
   "name": "杂七杂八",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "@viyfe",
   "icon": "https://raw.githubusercontent.com/Orz-3/mini/master/Color/appstore.png",
   "repo": "https://github.com/viyfe/Script",
@@ -163,6 +163,7 @@
         "Netease_Musician_UserAgent",
         "Netease_Musician_Phone",
         "Netease_Musician_Password",
+        "Netease_Musician_Captcha",
         "Netease_Musician_FansId",
         "Netease_Musician_Enable_Cloud_Shell_Task",
         "Netease_Musician_Enable_Musician_Task",
@@ -178,16 +179,24 @@
           "name": "手机号（账密登录用）",
           "val": "",
           "type": "text",
-          "desc": "只在你不想抓包时才填。填了手机号+密码，task.js 在没有可用 Cookie 时会自动登录换取 Cookie，不需要 MITM 和证书。留空则只走 cookie.js 抓包。",
+          "desc": "不想抓包就填这个。只填手机号跑一次任务 → 收到验证码短信 → 把验证码填进下面那栏 → 再跑一次即登录成功。不需要 MITM 和证书。留空则只走 cookie.js 抓包。",
           "placeholder": "13800138000"
         },
         {
           "id": "Netease_Musician_Password",
-          "name": "密码（账密登录用）",
+          "name": "密码（多数账号已失效）",
           "val": "",
           "type": "text",
-          "desc": "⚠️ BoxJS 不加密存储，这里填的密码是明文，会进 iCloud 备份，BoxJS 网页界面也能看到。脚本只用它算 md5 发给网易云，不外传。介意的话请留空改用抓包方式。若登录提示需要验证，说明触发了风控，也请改用抓包。",
-          "placeholder": "留空则不启用账密登录"
+          "desc": "⚠️ 网易云已对多数账号停用密码登录，填了大概率返回「请切换其他登录方式或升级新版本再试」。脚本遇到这个错会自动帮你发短信验证码。建议留空，直接用上面的短信验证码方式。BoxJS 不加密存储，填在这里是明文。",
+          "placeholder": "建议留空，改用短信验证码"
+        },
+        {
+          "id": "Netease_Musician_Captcha",
+          "name": "短信验证码（登录用）",
+          "val": "",
+          "type": "text",
+          "desc": "网易云已停用密码登录（会返回「请切换其他登录方式或升级新版本再试」）。改用短信：先只填手机号跑一次任务，会收到验证码短信；把验证码填到这里，再跑一次任务就能登录。验证码用完自动清空，Cookie 能用很久，不用每次都填。",
+          "placeholder": "收到短信后填 6 位验证码"
         },
         {
           "id": "Netease_Musician_Enable_Cloud_Shell_Task",
@@ -265,8 +274,8 @@
           "desc": "「抓不到 MUSIC_U」提醒的节流时间戳。"
         }
       ],
-      "author": "@viyfe",
-      "repo": "https://github.com/viyfe/SCript",
+      "author": "@leiyiyan",
+      "repo": "https://github.com/leiyiyan/resource",
       "icons": [
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/cloudmusic.png",
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/cloudmusic.png"
