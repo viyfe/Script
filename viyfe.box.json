@@ -1,7 +1,7 @@
 {
   "id": "weifv",
   "name": "杂七杂八",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "author": "@viyfe",
   "icon": "https://raw.githubusercontent.com/Orz-3/mini/master/Color/appstore.png",
   "repo": "https://github.com/viyfe/Script",
@@ -276,6 +276,241 @@
       ],
       "author": "@leiyiyan",
       "repo": "https://github.com/leiyiyan/resource",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/cloudmusic.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/cloudmusic.png"
+      ]
+    },
+    {
+      "id": "kugou_music",
+      "name": "酷狗音乐解析",
+      "keys": [
+        "kugou_music_apikey"
+      ],
+      "settings": [
+        {
+          "id": "kugou_music_apikey",
+          "name": "酷狗音乐 API Key",
+          "val": "",
+          "type": "text",
+          "desc": "填写 api.chksz.com 登录后获取的个人 apikey。保存后，酷狗音乐重写脚本会通过 Quantumult X 持久化存储自动读取。BoxJS 以明文保存此值，请勿分享含密钥的备份。",
+          "placeholder": "请输入个人 apikey"
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
+      "script": "https://raw.githubhttps://github.com/viyfe/Script/kugouvip.js",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/kugou.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/kugou.png"
+      ]
+    }
+  ]
+}
+          "val": "Nga_Official/90409",
+          "type": "text",
+          "desc": "如果不懂，请保持默认即可。"
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
+      "script": "https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/nga_signin.js",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/nga.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/nga.png"
+      ]
+    },
+    {
+      "id": "pp_parking_sign",
+      "name": "PP停车签到",
+      "keys": [
+        "pp_token"
+      ],
+      "settings": [
+        {
+          "id": "pp_token",
+          "name": "PP停车 Token 数据",
+          "val": "",
+          "type": "textarea",
+          "desc": "可通过代理软件重写自动获取，多账号会自动用 @ 隔开拼接。也可手动填写，格式如：手机号1#token1@手机号2#token2 或直接填token。"
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "",
+      "icons": [
+        "https://raw.githubusercontent.com/Sliverkiss/QuantumultX/main/icon/pp_parking.png"
+      ]
+    },
+    {
+      "id": "51daili",
+      "name": "51代理签到",
+      "keys": [
+        "dailick"
+      ],
+      "settings": [
+        {
+          "id": "dailick",
+          "name": "账号密码数据",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 3,
+          "desc": "请填写您的51代理账号密码。格式为：手机号#密码。多账号使用 & 隔开，例如：13800000000#pwd123&13900000000#pwd456"
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/terminal.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/terminal.png"
+      ]
+    },
+    {
+      "id": "sfsy_checkin",
+      "name": "顺丰速运",
+      "keys": [
+        "sfsyUrl"
+      ],
+      "settings": [
+        {
+          "id": "sfsyUrl",
+          "name": "顺丰 Cookie 列表",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 3,
+          "desc": "可通过重写自动抓取。多账号请使用【&】符号隔开。包含 sessionId, _login_mobile_ 等关键信息。",
+          "placeholder": "Cookie1&Cookie2..."
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
+      "icons": [
+        "https://raw.githubusercontent.com/Sliverkiss/QuantumultX/main/icon/sfsy.png",
+        "https://raw.githubusercontent.com/Sliverkiss/QuantumultX/main/icon/sfsy.png"
+      ]
+    },
+    {
+      "id": "netease_musician",
+      "name": "网易云音乐人",
+      "keys": [
+        "Netease_Musician_Cookie",
+        "Netease_Musician_UserAgent",
+        "Netease_Musician_Phone",
+        "Netease_Musician_Password",
+        "Netease_Musician_Captcha",
+        "Netease_Musician_FansId",
+        "Netease_Musician_Enable_Cloud_Shell_Task",
+        "Netease_Musician_Enable_Musician_Task",
+        "Netease_Musician_Enable_Vip_Task",
+        "Netease_Musician_Rule_Hit",
+        "Netease_Musician_Cookie_Ts",
+        "Netease_Musician_Warn_Ts",
+        "Netease_Musician_Diag_Log"
+      ],
+      "settings": [
+        {
+          "id": "Netease_Musician_Phone",
+          "name": "手机号（账密登录用）",
+          "val": "",
+          "type": "text",
+          "desc": "不想抓包就填这个。只填手机号跑一次任务 → 收到验证码短信 → 把验证码填进下面那栏 → 再跑一次即登录成功。不需要 MITM 和证书。留空则只走 cookie.js 抓包。",
+          "placeholder": "13800138000"
+        },
+        {
+          "id": "Netease_Musician_Password",
+          "name": "密码（多数账号已失效）",
+          "val": "",
+          "type": "text",
+          "desc": "⚠️ 网易云已对多数账号停用密码登录，填了大概率返回「请切换其他登录方式或升级新版本再试」。脚本遇到这个错会自动帮你发短信验证码。建议留空，直接用上面的短信验证码方式。BoxJS 不加密存储，填在这里是明文。",
+          "placeholder": "建议留空，改用短信验证码"
+        },
+        {
+          "id": "Netease_Musician_Captcha",
+          "name": "短信验证码（登录用）",
+          "val": "",
+          "type": "text",
+          "desc": "网易云已停用密码登录（会返回「请切换其他登录方式或升级新版本再试」）。改用短信：先只填手机号跑一次任务，会收到验证码短信；把验证码填到这里，再跑一次任务就能登录。验证码用完自动清空，Cookie 能用很久，不用每次都填。",
+          "placeholder": "收到短信后填 6 位验证码"
+        },
+        {
+          "id": "Netease_Musician_Enable_Cloud_Shell_Task",
+          "name": "开启云贝任务",
+          "val": false,
+          "type": "boolean",
+          "desc": "音乐人云豆任务：签到、发动态、评论、私信粉丝等。"
+        },
+        {
+          "id": "Netease_Musician_Enable_Musician_Task",
+          "name": "开启音乐人任务",
+          "val": false,
+          "type": "boolean",
+          "desc": "音乐人工作台的周期任务与阶段任务，完成后自动领取云豆奖励。"
+        },
+        {
+          "id": "Netease_Musician_Enable_Vip_Task",
+          "name": "开启会员任务",
+          "val": false,
+          "type": "boolean",
+          "desc": "黑胶会员成长值任务。不是黑胶会员的话开了也会自动跳过。"
+        },
+        {
+          "id": "Netease_Musician_Cookie",
+          "name": "Cookie",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 3,
+          "desc": "由 cookie.js 抓包自动写入，或由账密登录自动写入，一般不用手填。必须含 MUSIC_U 才可用；__csrf 缺失不影响（task.js 会自造 csrf_token）。想重新抓取就清空这一栏。",
+          "placeholder": "MUSIC_U=...; __csrf=...; deviceId=..."
+        },
+        {
+          "id": "Netease_Musician_UserAgent",
+          "name": "User-Agent",
+          "val": "",
+          "type": "text",
+          "desc": "由 cookie.js 抓包时一起记录，留空则用默认 UA。"
+        },
+        {
+          "id": "Netease_Musician_FansId",
+          "name": "粉丝 ID（私信任务用）",
+          "val": "",
+          "type": "text",
+          "desc": "私信任务的目标粉丝。留空则脚本自动从最近私信或粉丝列表里挑一个，并把结果缓存在这里。"
+        },
+        {
+          "id": "Netease_Musician_Rule_Hit",
+          "name": "重写规则命中标记（只读）",
+          "val": "",
+          "type": "text",
+          "desc": "cookie.js 第一次被调用时写入的时间戳。这一栏有值 = MITM 和证书都正常；一直是空的 = 重写规则压根没生效，问题在证书或规则，不在脚本。清空它可以让「重写规则已生效」心跳通知再发一次。"
+        },
+        {
+          "id": "Netease_Musician_Diag_Log",
+          "name": "自检记录（只读）",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 2,
+          "desc": "diag.js 当重写脚本跑时记录的最近 40 次命中，含 URL 和各自带了哪些 Cookie 字段。用来回答「到底命中了哪些地址」。可随时清空。"
+        },
+        {
+          "id": "Netease_Musician_Cookie_Ts",
+          "name": "上次写入时间（只读）",
+          "val": "",
+          "type": "text",
+          "desc": "cookie.js 成功通知的节流时间戳。"
+        },
+        {
+          "id": "Netease_Musician_Warn_Ts",
+          "name": "上次提醒时间（只读）",
+          "val": "",
+          "type": "text",
+          "desc": "「抓不到 MUSIC_U」提醒的节流时间戳。"
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/Script",
       "icons": [
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/cloudmusic.png",
         "https://raw.githubusercontent.com/Orz-3/mini/master/Color/cloudmusic.png"
