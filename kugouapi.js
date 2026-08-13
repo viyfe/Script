@@ -3,7 +3,7 @@ const $ = new Env("酷狗音乐");
 const KUGOU_SCRIPT_VERSION = "1.1.0";
 const KUGOU_API_URL = "https://api.chksz.com/api/kugou_music";
 const KUGOU_API_KEY = "YOUR_API_KEY";
-const KUGOU_AUDIO_QUALITY = "flac";
+const KUGOU_AUDIO_QUALITY = "master";
 
 const requestUrl = $request.url;
 
@@ -109,7 +109,7 @@ function getAudioExtension(data, mediaUrl) {
 
   const path = String(mediaUrl).split("?")[0];
   const match = path.match(/\.([a-z0-9]{2,5})$/i);
-  return match ? match[1].toLowerCase() : "master";
+  return match ? match[1].toLowerCase() : "flac";
 }
 
 function formatError(error) {
