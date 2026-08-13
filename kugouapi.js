@@ -117,6 +117,22 @@ function getAudioExtension(data, mediaUrl) {
   return match ? match[1].toLowerCase() : KUGOU_AUDIO_QUALITY;
 }
 
+function formatError(error) {
+  if (error instanceof Error) return error.message || String(error);
+  if (typeof error === "string") return error;
+
+  try {
+    const json = JSON.stringify(error);
+    if (json && json !== "{}") return json;
+  } catch (_) {}
+
+  const details = [];
+  for (const key of ["error", "message", "localizedDescription", "statusCode", "status"]) {
+    if (error?.[key] !== undefined) details.push(`${key}=${error[key]}`);
+  }
+  return details.length ? details.join(", ") : String(error);
+}
+
 async function replaceSongUrl() {
   const hash = getQueryParam(requestUrl, "hash");
   if (!hash) {
@@ -137,12 +153,20 @@ async function replaceSongUrl() {
     `apikey=${encodeURIComponent(apiKey)}`,
   ].join("&");
 
+  const apiUrl = `${KUGOU_API_URL}?${query}`;
+  $.log(`开始解析歌曲，hash=${hash}，音质=${KUGOU_AUDIO_QUALITY}，apikey=${maskSecret(apiKey)}`);
+
   try {
-    const response = await $.fetch(`${KUGOU_API_URL}?${query}`, {
-      headers: { Accept: "application/json" },
+    const response = await $.fetch(apiUrl, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Quantumult X",
+      },
     });
     const payload = $.toObj(response.body, {});
     const data = getResponseData(payload);
+
+    $.log(`解析接口响应：HTTP ${response.statusCode || response.status || "未知"}，code=${payload.code ?? "未知"}，msg=${payload.msg || "无"}`);
 
     if (Number(payload.code) !== 200 || !data?.url) {
       throw new Error(payload.msg || `接口未返回歌曲地址，HTTP ${response.statusCode || response.status}`);
@@ -162,9 +186,16 @@ async function replaceSongUrl() {
 
     return $.done({ body: JSON.stringify(original) });
   } catch (error) {
-    $.logErr(`歌曲解析失败：${error.message || error}`);
+    $.logErr(`歌曲解析失败：${formatError(error)}`);
+    $.log("请检查 Quantumult X 中 api.chksz.com 的分流、DNS 和网络连通性");
     return $.done({});
   }
+}
+
+function maskSecret(secret) {
+  const value = String(secret || "");
+  if (value.length <= 8) return `${value.slice(0, 2)}***`;
+  return `${value.slice(0, 4)}***${value.slice(-4)}`;
 }
 
 if (
