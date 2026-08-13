@@ -1,7 +1,7 @@
 {
   "id": "weifv",
   "name": "杂七杂八",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "@viyfe",
   "icon": "https://raw.githubusercontent.com/Orz-3/mini/master/Color/appstore.png",
   "repo": "https://github.com/viyfe/Script",
@@ -153,6 +153,123 @@
       "icons": [
         "https://raw.githubusercontent.com/Sliverkiss/QuantumultX/main/icon/sfsy.png",
         "https://raw.githubusercontent.com/Sliverkiss/QuantumultX/main/icon/sfsy.png"
+      ]
+    },
+    {
+      "id": "netease_musician",
+      "name": "网易云音乐人",
+      "keys": [
+        "Netease_Musician_Cookie",
+        "Netease_Musician_UserAgent",
+        "Netease_Musician_Phone",
+        "Netease_Musician_Password",
+        "Netease_Musician_FansId",
+        "Netease_Musician_Enable_Cloud_Shell_Task",
+        "Netease_Musician_Enable_Musician_Task",
+        "Netease_Musician_Enable_Vip_Task",
+        "Netease_Musician_Rule_Hit",
+        "Netease_Musician_Cookie_Ts",
+        "Netease_Musician_Warn_Ts",
+        "Netease_Musician_Diag_Log"
+      ],
+      "settings": [
+        {
+          "id": "Netease_Musician_Phone",
+          "name": "手机号（账密登录用）",
+          "val": "",
+          "type": "text",
+          "desc": "只在你不想抓包时才填。填了手机号+密码，task.js 在没有可用 Cookie 时会自动登录换取 Cookie，不需要 MITM 和证书。留空则只走 cookie.js 抓包。",
+          "placeholder": "13800138000"
+        },
+        {
+          "id": "Netease_Musician_Password",
+          "name": "密码（账密登录用）",
+          "val": "",
+          "type": "text",
+          "desc": "⚠️ BoxJS 不加密存储，这里填的密码是明文，会进 iCloud 备份，BoxJS 网页界面也能看到。脚本只用它算 md5 发给网易云，不外传。介意的话请留空改用抓包方式。若登录提示需要验证，说明触发了风控，也请改用抓包。",
+          "placeholder": "留空则不启用账密登录"
+        },
+        {
+          "id": "Netease_Musician_Enable_Cloud_Shell_Task",
+          "name": "开启云贝任务",
+          "val": false,
+          "type": "boolean",
+          "desc": "音乐人云豆任务：签到、发动态、评论、私信粉丝等。"
+        },
+        {
+          "id": "Netease_Musician_Enable_Musician_Task",
+          "name": "开启音乐人任务",
+          "val": false,
+          "type": "boolean",
+          "desc": "音乐人工作台的周期任务与阶段任务，完成后自动领取云豆奖励。"
+        },
+        {
+          "id": "Netease_Musician_Enable_Vip_Task",
+          "name": "开启会员任务",
+          "val": false,
+          "type": "boolean",
+          "desc": "黑胶会员成长值任务。不是黑胶会员的话开了也会自动跳过。"
+        },
+        {
+          "id": "Netease_Musician_Cookie",
+          "name": "Cookie",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 3,
+          "desc": "由 cookie.js 抓包自动写入，或由账密登录自动写入，一般不用手填。必须含 MUSIC_U 才可用；__csrf 缺失不影响（task.js 会自造 csrf_token）。想重新抓取就清空这一栏。",
+          "placeholder": "MUSIC_U=...; __csrf=...; deviceId=..."
+        },
+        {
+          "id": "Netease_Musician_UserAgent",
+          "name": "User-Agent",
+          "val": "",
+          "type": "text",
+          "desc": "由 cookie.js 抓包时一起记录，留空则用默认 UA。"
+        },
+        {
+          "id": "Netease_Musician_FansId",
+          "name": "粉丝 ID（私信任务用）",
+          "val": "",
+          "type": "text",
+          "desc": "私信任务的目标粉丝。留空则脚本自动从最近私信或粉丝列表里挑一个，并把结果缓存在这里。"
+        },
+        {
+          "id": "Netease_Musician_Rule_Hit",
+          "name": "重写规则命中标记（只读）",
+          "val": "",
+          "type": "text",
+          "desc": "cookie.js 第一次被调用时写入的时间戳。这一栏有值 = MITM 和证书都正常；一直是空的 = 重写规则压根没生效，问题在证书或规则，不在脚本。清空它可以让「重写规则已生效」心跳通知再发一次。"
+        },
+        {
+          "id": "Netease_Musician_Diag_Log",
+          "name": "自检记录（只读）",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 2,
+          "desc": "diag.js 当重写脚本跑时记录的最近 40 次命中，含 URL 和各自带了哪些 Cookie 字段。用来回答「到底命中了哪些地址」。可随时清空。"
+        },
+        {
+          "id": "Netease_Musician_Cookie_Ts",
+          "name": "上次写入时间（只读）",
+          "val": "",
+          "type": "text",
+          "desc": "cookie.js 成功通知的节流时间戳。"
+        },
+        {
+          "id": "Netease_Musician_Warn_Ts",
+          "name": "上次提醒时间（只读）",
+          "val": "",
+          "type": "text",
+          "desc": "「抓不到 MUSIC_U」提醒的节流时间戳。"
+        }
+      ],
+      "author": "@viyfe",
+      "repo": "https://github.com/viyfe/SCript",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/cloudmusic.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/cloudmusic.png"
       ]
     }
   ]
