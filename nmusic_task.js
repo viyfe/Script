@@ -100,13 +100,14 @@
 /* ===== 区段 1 / 3：业务逻辑与加密实现 ===== */
 const $ = new Env('网易云音乐人');
 $.CryptoJS = initCryptoJS();
-const domain = "https://interface.music.163.com",
-  newDomain = "https://interface3.music.163.com",
-  userAgent = $.isNode() ? process.env.Netease_Musician_UserAgent : $.getdata('Netease_Musician_UserAgent'),
-  cookie = $.isNode() ? process.env.Netease_Musician_Cookie : $.getdata("Netease_Musician_Cookie"),
-  cookieKey = formatCookie(cookie),
-  deviceId = cookieKey.deviceId;
-let csrfToken = cookieKey.csrfToken;
+let cookie, csrfToken;
+const domain = "https://interface.music.163.com";
+const newDomain = "https://interface3.music.163.com";
+const userAgent = $.isNode() ? process.env.Netease_Musician_UserAgent : $.getdata('Netease_Musician_UserAgent');
+cookie = $.isNode() ? process.env.Netease_Musician_Cookie : $.getdata("Netease_Musician_Cookie");
+const cookieKey = formatCookie(cookie);
+csrfToken = cookieKey.csrfToken;
+const deviceId = cookieKey.deviceId;
 let fansId = $.getdata("Netease_Musician_FansId");
 const isEnableCloudShellTask = checkSelectData($.isLoon() ? '开启云贝任务' : 'Netease_Musician_Enable_Cloud_Shell_Task'),
   isEnableMusicianTask = checkSelectData($.isLoon() ? '开启音乐人任务' : 'Netease_Musician_Enable_Musician_Task'),
@@ -132,10 +133,22 @@ const songs = ["2063864551", '1299550532', '1969822728'],
 !(async () => {
   // 前置校验：没有可用 Cookie 就立刻提示退出，不白跑一轮无效请求 
   if (!cookie || cookie === "undefined" || cookie === "null" || !/(?:^|;\s*)MUSIC_U=[^;\s]/.test(cookie)) {
-    const why = !cookie || cookie === "undefined" || cookie === "null" ? "存储里没有 Cookie，cookie.js 还没抓到过" : "Cookie 里没有 MUSIC_U（未登录态，抓到的不是登录后的请求）";
-    console.log("\n❌ " + why);
-    $.msg($.name, "Cookie 未配置 ❌", why + "\n请先在圈X [rewrite_local] 里装好 cookie.js，再打开网易云 APP 的音乐人中心页面抓一次。");
-    return $.done();
+    // 没有可用 Cookie 时，先试账密登录（BoxJS 里配了才会走这条路）
+    const fresh = await loginByPassword();
+    if (fresh) {
+      cookie = fresh;
+      headers.cookie = fresh;
+      const k = formatCookie(fresh);
+      if (k.csrfToken) {
+        csrfToken = k.csrfToken;
+        headers.csrf_token = csrfToken;
+      }
+    } else {
+      const why = !cookie || cookie === "undefined" || cookie === "null" ? "存储里没有 Cookie，cookie.js 还没抓到过" : "Cookie 里没有 MUSIC_U（未登录态，抓到的不是登录后的请求）";
+      console.log("\n❌ " + why);
+      $.msg($.name, "Cookie 未配置 ❌", why + "\n可二选一：① 装 cookie.js 抓包；② 在 BoxJS 里填 Netease_Musician_Phone / Netease_Musician_Password 走账密登录。");
+      return $.done();
+    }
   }
   if (!csrfToken) {
     // 照 core.py:255-260：Cookie 里没有 __csrf 就自造一个随机 csrf_token。
@@ -168,6 +181,98 @@ function randomCsrfToken() {
   let s = "";
   while (s.length < 32) s += Math.floor(Math.random() * 16).toString(16);
   return s.slice(0, 32);
+}
+// 账密登录兜底：对应 Docker 项目 LOGIN_METHOD='api' / core/netease.py:196-210 
+async function loginByPassword() {
+  const phone = $.isNode() ? process.env.Netease_Musician_Phone : $.getdata("Netease_Musician_Phone");
+  const password = $.isNode() ? process.env.Netease_Musician_Password : $.getdata("Netease_Musician_Password");
+  if (!phone || !password || phone === "undefined" || password === "undefined") return "";
+  console.log("\n🔑 检测到已配置账密，尝试登录换取 Cookie...");
+  try {
+    const pwMd5 = $.CryptoJS.MD5(String(password)).toString();
+    const opts = {
+      url: "https://music.163.com/weapi/login/cellphone?csrf_token=",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "user-agent": userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+        referer: "https://music.163.com/"
+      },
+      body: weapiEncrypt({
+        phone: String(phone),
+        password: pwMd5,
+        rememberLogin: "true"
+      })
+    };
+    const r = await new Promise(resolve => {
+      const cb = (err, resp, data) => resolve({
+        err,
+        resp,
+        data
+      });
+      try {
+        if ($.isNode()) {
+          fetch(opts.url, {
+            method: "post",
+            headers: opts.headers,
+            body: opts.body
+          }).then(async res => resolve({
+            resp: {
+              headers: {
+                "set-cookie": res.headers.getSetCookie ? res.headers.getSetCookie() : []
+              }
+            },
+            data: await res.text()
+          })).catch(err => resolve({
+            err
+          }));
+        } else $.http.post(opts).then(resp => cb(null, resp, resp.body), err => cb(err));
+      } catch (e) {
+        resolve({
+          err: e
+        });
+      }
+    });
+    if (r.err) {
+      console.log("\n❌ 登录请求失败: " + r.err);
+      return "";
+    }
+    const body = $.toObj(r.data) || {};
+    if (body.code !== 200 || !body.account) {
+      const msg = body.message || body.msg || "code=" + body.code;
+      console.log("\n❌ 登录被拒: " + msg);
+      $.msg($.name, "账密登录失败 ❌", msg + "\n若提示需要验证，说明触发了风控，请改用 cookie.js 抓包。");
+      return "";
+    }
+    // 从响应头取 Set-Cookie，等价于 Docker 侧的 session.cookies
+    const h = r.resp && r.resp.headers || {};
+    let raw = "";
+    for (const k in h)
+      if (String(k).toLowerCase() === "set-cookie") {
+        raw = h[k];
+        break;
+      }
+    const list = Array.isArray(raw) ? raw : String(raw || "").split(/,(?=[^;,]+=)/);
+    const jar = {};
+    list.forEach(one => {
+      const kv = String(one).split(";")[0].trim();
+      const i = kv.indexOf("=");
+      if (i > 0 && kv.slice(i + 1).trim()) jar[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+    });
+    const ck = Object.keys(jar).map(k => k + "=" + jar[k]).join("; ");
+    if (!/(?:^|;\s*)MUSIC_U=[^;\s]/.test(ck)) {
+      console.log("\n❌ 登录成功但响应里没有 MUSIC_U（可能是代理软件未回传 Set-Cookie）");
+      $.msg($.name, "账密登录未拿到 Cookie ❌", "登录接口返回成功，但响应头里取不到 MUSIC_U。\n请改用 cookie.js 抓包方式。");
+      return "";
+    }
+    $.setdata(ck, "Netease_Musician_Cookie");
+    const nick = body.profile && body.profile.nickname || phone;
+    console.log("\n✅ 账密登录成功: " + nick + " (uid=" + body.account.id + ")");
+    $.msg($.name, "账密登录成功 ✅", nick + "\nCookie 已写入存储，本次任务继续执行。");
+    return ck;
+  } catch (e) {
+    console.log("\n❌ 登录异常: " + (e && e.message ? e.message : String(e)));
+    return "";
+  }
 }
 
 function finishCloudShellMissions() {
