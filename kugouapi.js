@@ -3,7 +3,7 @@ const $ = new Env("酷狗音乐");
 const KUGOU_SCRIPT_VERSION = "1.1.0";
 const KUGOU_API_URL = "https://api.chksz.com/api/kugou_music";
 const KUGOU_API_KEY = "YOUR_API_KEY";
-const KUGOU_AUDIO_QUALITY = "master";
+const KUGOU_AUDIO_QUALITY = "flac";
 
 const requestUrl = $request.url;
 
