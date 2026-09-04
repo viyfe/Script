@@ -7,10 +7,10 @@
  *
  * 配置：
  *   [rewrite_local]
- *   ^https?:\/\/devdata\.huaweicloud\.com\/(index\/islogin|api\/get-ainfo|rest\/developer\/fwdu\/) url script-request-header hwcloud.js
+ *   ^https?:\/\/devdata\.huaweicloud\.com\/(index\/islogin|api\/get-ainfo|rest\/developer\/fwdu\/) url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/hwcloud.js
  *
  *   [task_local]
- *   10 8 * * * hwcloud.js, tag=华为云成长中心, enabled=true
+ *   10 8 * * * https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/hwcloud.js, tag=华为云成长中心, enabled=true
  *
  *   [mitm]
  *   hostname = devdata.huaweicloud.com
