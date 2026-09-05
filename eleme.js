@@ -15,7 +15,11 @@
  *
  *   [rewrite_local]
  *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body eleme_qx.js
+ *   ^https?:\/\/rsc-api\.ele\.me\/h5\/.*receiveprize url script-request-body eleme_qx.js
  *   ^https?:\/\/(sp|rsc-api|alsc-config|metis-er|r|tb|air\.tb)\.ele\.me\/ url script-request-header eleme_qx.js
+ *
+ *   第 2 条要在第 3 条前面：领奖那一发要读 POST body，必须是 request-body 类型，
+ *   request-header 类型下 $request.body 是空的。圈X 按顺序取第一条匹配的规则。
  *
  *   [task_local]
  *   10 9,13,21 * * * eleme_qx.js, tag=饿了么幸运星, enabled=true
@@ -73,6 +77,11 @@ const K_QX_UA = 'elm_qx_ua'; // 真实 App 的 UA
 const K_EXTRA_CK = ['elm_ck_2', 'elm_ck_3', 'elm_ck_4']; // 多账号手填位
 const K_HITS = 'elm_rw_hits'; // 重写被调起的次数，用来判断"到底有没有触发"
 const K_LAST = 'elm_rw_last'; // 最后一次调起命中的 URL(只留 host+path)
+const K_REAL_CLAIM = 'elm_real_claim'; // App 自己点"领取奖励"发的那一发，用来对账
+
+// 脚本最后一发领奖的 data / 头，领奖失败时拿它跟 App 真实那发逐字比
+let lastClaimData = null;
+let lastClaimHeaders = null;
 
 const readK = (k) => {
   try {
@@ -992,7 +1001,8 @@ function logClaimCtx(col, p, r) {
     `      → POST receiveprize v1.0 任务集=${col.id}(${col.scene}) asac=${ASAC_PRIZE}`
   );
   log(
-    `      → 入参 count=${p.count} sum=${p.sum} ` +
+    `      → 入参 count=${p.count == null ? '未带' : p.count} ` +
+      `sum=${p.sum == null ? '未带' : p.sum} ` +
       `instanceId=${p.instanceId == null ? '未带' : '已带'}`
   );
   log(`      → ret=${((r || {}).ret || []).join(';') || '无'}`);
@@ -1006,6 +1016,21 @@ function logClaimCtx(col, p, r) {
     }
     log(`      → data=${s.length > 400 ? s.slice(0, 400) + '…(截断)' : s}`);
   }
+}
+
+/**
+ * 发奖侧点名账号被风控时(百川决策引擎返回 RISK_USER / NO_DECISION_ITEM)，
+ * 重试和换头都不会变结果 —— 原样再打一遍只是多敲一次风控账号。
+ * 判据取服务端自己的话，不做猜测。
+ */
+function riskRefused(r) {
+  let s = '';
+  try {
+    s = JSON.stringify((r || {}).data || '') + ((r || {}).ret || []).join(';');
+  } catch (e) {
+    s = ((r || {}).ret || []).join(';');
+  }
+  return /RISK_USER|NO_DECISION_ITEM|风控用户/.test(s);
 }
 
 // ---------- 接口封装 ----------
@@ -1096,6 +1121,7 @@ const API = {
       { asac: col.asac }
     ),
   receivePrize: (c, col, p) => {
+    // 留最后一发的 data/头，供 diffRealClaim 和 App 真实请求逐字比
     const d = {
       missionCollectionId: col.id,
       missionId: p.missionId,
@@ -1110,9 +1136,10 @@ const API = {
     // bundle 里 receiveprize 是 i.asac=... 写进 data 的，外层封装又把它抬进 header，
     // 所以两处都带；注意这个值是数字 0 开头，和 stage.reward 那个字母 O 的不是同一个
     d.asac = ASAC_PRIZE;
-    return c.call('mtop.ele.biz.growth.task.core.receiveprize', '1.0', d, {
-      asac: ASAC_PRIZE,
-    });
+    const hdr = { asac: ASAC_PRIZE };
+    lastClaimData = d;
+    lastClaimHeaders = Object.assign({ 'bx-umidtoken': c.umid || '' }, hdr);
+    return c.call('mtop.ele.biz.growth.task.core.receiveprize', '1.0', d, hdr);
   },
   // 主态抽奖(用抽奖机会抽免单) / 阶段性奖励
   iconDraw: (c) =>
@@ -1332,11 +1359,19 @@ async function doTasks(c, col, sum) {
         let be = bizErr(r);
         // 阶段刚落库就领，可能抢在发奖服务前面。失败就等 3s 重试一次(只一次)
         if (!(isOk(r) && !be)) {
-          log(`      领奖第 1 次失败: ${be || retMsg(r)}，等 3s 重试`);
           logClaimCtx(col, p, r);
-          await sleep(3000);
-          r = await API.receivePrize(c, col, p);
-          be = bizErr(r);
+          // 有 App 真实请求快照就逐字对账，直接指出差在哪个字段/哪个头
+          diffRealClaim(lastClaimData, lastClaimHeaders);
+          if (riskRefused(r)) {
+            // 发奖侧点名风控，重试无意义，直接落账
+            log('      发奖侧点名账号风控(RISK_USER)，不重试');
+            sum.riskHit = true;
+          } else {
+            log(`      领奖第 1 次失败: ${be || retMsg(r)}，等 3s 重试`);
+            await sleep(3000);
+            r = await API.receivePrize(c, col, p);
+            be = bizErr(r);
+          }
         }
         if (isOk(r) && !be) {
           const got = describeRewards(biz(r));
@@ -1510,6 +1545,7 @@ async function runAccount(ck, idx, total) {
     gain: [],
     fail: [],
     claimFail: [], // 打点成功但领奖失败 —— 和 taskDone 分开，否则汇总会虚报战绩
+    riskHit: false, // 发奖侧点名 RISK_USER，推送里要说明是账号被标记不是脚本没跑
   };
   const uid = pick(ck, 'unb') || pick(ck, 'USERID') || '';
   sum.name = uid ? `账号${idx}(${uid.slice(0, 4)}***${uid.slice(-3)})` : `账号${idx}`;
@@ -1671,6 +1707,9 @@ function buildSummary(all) {
   const claimBad = all.reduce((n, s) => n + (s.claimFail || []).length, 0);
   if (!total.length && pinged && claimBad)
     lines.push(`\n打点 ${pinged} 个全过，但领奖 ${claimBad} 个全失败 —— 卡在发奖侧`);
+  // 服务端自己点名 RISK_USER 时说清楚归因，免得以为是脚本或 CK 的问题
+  if (all.some((s) => s.riskHit))
+    lines.push('发奖侧点名账号风控(RISK_USER)，换头/换参数都不改结果');
   return lines.join('\n');
 }
 
@@ -1770,6 +1809,117 @@ function captureUmid() {
  * 抓请求头而不是 document.cookie，HttpOnly 的项才拿得到 —— 手动复制会漏掉的
  * 正是这部分。顺带把同一批头里的 UA、bx-umidtoken、_m_h5_tk 一起收了。
  */
+/**
+ * 抓 App 自己点「领取奖励」发的那一发 receiveprize。
+ *
+ * 为什么要抓：脚本发的和 App 发的都到了 riskControl:2 这一档，服务端却只
+ * 拒脚本那发（返回 RISK_USER），而活动页上按钮是可点的红色 —— 说明差别在
+ * 请求本身，不在账号。逐字对比是唯一能定位差在哪个字段的办法。
+ *
+ * 只留字段名和长度、外加非敏感字段的值；cookie / token / sid 一律不落盘，
+ * 因为 $prefs 的内容会进日志和推送。
+ */
+function captureRealClaim(url) {
+  const h = (($request && $request.headers) || {});
+  const body = String(($request && $request.body) || '');
+
+  // instanceId 是账号绑定的，跟 logClaimCtx 保持一致只记有无，不留值
+  const SAFE = [
+    'missionCollectionId', 'missionId', 'bizScene', 'accountPlan',
+    'count', 'sum', 'asac', 'longitude', 'latitude',
+  ];
+  const SENSITIVE = /cookie|token|sid|sign|sgext|wua|utdid|umt|uid|unb/i;
+
+  // mtop 的 data 是 form body 里的 data=<json>，先剥出来
+  let dataRaw = '';
+  const mb = /(?:^|&)data=([^&]*)/.exec(body);
+  if (mb) { try { dataRaw = decodeURIComponent(mb[1]); } catch (e) { dataRaw = mb[1]; } }
+
+  const shape = {};
+  try {
+    const j = JSON.parse(dataRaw || '{}');
+    Object.keys(j).forEach((k) => {
+      const v = j[k];
+      // 安全白名单里的字段留真值（都是任务 id / 场景名这类非私密量），
+      // 其余只留"有没有 + 多长"，够对账又不落盘敏感值
+      shape[k] = SAFE.indexOf(k) >= 0 && !SENSITIVE.test(k)
+        ? v
+        : `<${v == null ? 'null' : typeof v}:${String(v).length}>`;
+    });
+  } catch (e) {
+    shape._parseError = `data 不是 JSON，长度 ${dataRaw.length}`;
+  }
+
+  // 头只记名字 + 长度，另外单独标注几个关键风控头到底有没有
+  const hnames = Object.keys(h);
+  const marks = {};
+  ['bx-umidtoken', 'asac', 'x-sid', 'x-sgext', 'x-sign', 'wua', 'x-mini-wua', 'rc-token']
+    .forEach((n) => {
+      const v = pickHeaderCI(h, n);
+      marks[n] = v ? `有(${String(v).length})` : '无';
+    });
+
+  const snap = {
+    ts: Date.now(),
+    api: (/[?&]api=([^&]*)/.exec(url) || [])[1] || '',
+    v: (/[?&]v=([^&]*)/.exec(url) || [])[1] || '',
+    hasTtidInQuery: /[?&]ttid=/.test(url),
+    dataKeys: shape,
+    headerNames: hnames,
+    riskHeaders: marks,
+  };
+  let s = '';
+  try { s = JSON.stringify(snap); } catch (e) { s = '{}'; }
+  writeK(K_REAL_CLAIM, s);
+
+  log('[重写] ★ 抓到 App 真实领奖请求，已存快照。下次跑定时任务会打出对账结果');
+  log(`[重写]   api=${snap.api} v=${snap.v}`);
+  log(`[重写]   风控头: ${Object.keys(marks).map((n) => `${n}=${marks[n]}`).join(' ')}`);
+  log(`[重写]   data 字段: ${Object.keys(shape).join(',')}`);
+  return $done({});
+}
+
+/**
+ * 把 App 真实那发和脚本要发的逐字比，只报差异。
+ * 参数 mine 是脚本这边即将发出去的 data 对象。
+ */
+function diffRealClaim(mine, myHeaders) {
+  const raw = readK(K_REAL_CLAIM);
+  if (!raw) return false;
+  let snap;
+  try { snap = JSON.parse(raw); } catch (e) { return false; }
+
+  const age = Math.round((Date.now() - (snap.ts || 0)) / 60000);
+  log(`  ── 与 App 真实领奖请求对账(快照 ${age} 分钟前) ──`);
+  if (snap.api && snap.api.indexOf('receiveprize') < 0)
+    log(`  ⚠ App 走的接口名是 ${snap.api}，不是 receiveprize —— 接口就选错了`);
+  if (snap.v && snap.v !== '1.0') log(`  ⚠ App 用的版本是 v${snap.v}，脚本用 v1.0`);
+
+  const theirs = snap.dataKeys || {};
+  const tk = Object.keys(theirs);
+  const mk = Object.keys(mine || {});
+  const miss = tk.filter((k) => mk.indexOf(k) < 0);
+  const extra = mk.filter((k) => tk.indexOf(k) < 0);
+  if (miss.length) log(`  ⚠ App 带了脚本没带的字段: ${miss.join(',')}`);
+  if (extra.length) log(`  · 脚本多带的字段: ${extra.join(',')}`);
+  tk.forEach((k) => {
+    const a = theirs[k];
+    if (typeof a === 'string' && /^<.*>$/.test(a)) return; // 脱敏过的不比值
+    if (mk.indexOf(k) >= 0 && String(mine[k]) !== String(a))
+      log(`  · ${k}: App=${a} 脚本=${mine[k]}`);
+  });
+
+  const rh = snap.riskHeaders || {};
+  Object.keys(rh).forEach((n) => {
+    const hv = pickHeaderCI(myHeaders || {}, n);
+    const my = hv ? `有(${String(hv).length})` : '无';
+    if (rh[n] !== my) log(`  ⚠ 头 ${n}: App=${rh[n]} 脚本=${my}`);
+  });
+  if (!miss.length && !tk.some((k) => mk.indexOf(k) >= 0 && String(mine[k]) !== String(theirs[k])))
+    log('  data 字段与 App 一致，差异只在风控头');
+  return true;
+}
+
 function captureCk() {
   let h = {};
   try {
@@ -1923,10 +2073,17 @@ if (IS_REWRITE) {
 
   const isUmid = /ynuf\.aliapp\.org/.test(url);
   const hasResp = typeof $response !== 'undefined' && $response;
+  // App 自己点"领取奖励"那一发优先处理 —— 它同时也带完整 CK，
+  // 所以抓完快照后继续走 captureCk，两件事一次做完
+  const isClaim = /receiveprize/i.test(url);
   // 只有确实拿到 $response 才走 umid 分支。ynuf 规则若被误配成
   // request-header 类型，这里 hasResp=false，走 captureUmid 会拿空 body
   // 去 $done，等于把响应清空 —— 宁可什么都不做。
-  if (isUmid && !hasResp) {
+  if (isClaim && !hasResp) {
+    // App 自己点"领取奖励"那一发。抓完快照直接结束，
+    // 这条请求本身也带 CK，但对账信息更要紧，别把两件事挤在一个出口
+    captureRealClaim(url);
+  } else if (isUmid && !hasResp) {
     log('[重写] ynuf 命中但没有 $response —— 规则类型应为 script-response-body，请检查配置');
     $done({});
   } else if (hasResp) {
