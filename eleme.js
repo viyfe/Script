@@ -14,8 +14,8 @@
  * ── 圈X 配置 ────────────────────────────────────────────────────
  *
  *   [rewrite_local]
- *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body eleme_qx.js
- *   ^https?:\/\/(tb|rsc-api)\.ele\.me\/ url script-request-header eleme_qx.js
+ *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
+ *   ^https?:\/\/(tb|rsc-api)\.ele\.me\/ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *
  *   [task_local]
  *   10 9,13,21 * * * eleme_qx.js, tag=饿了么幸运星, enabled=true
