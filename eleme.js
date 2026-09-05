@@ -18,7 +18,7 @@
  *   ^https?:\/\/(tb|rsc-api)\.ele\.me\/ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *
  *   [task_local]
- *   10 9,13,21 * * * eleme_qx.js, tag=饿了么幸运星, enabled=true
+ *   10 9,13,21 * * * https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js, tag=饿了么幸运星, enabled=true
  *
  *   [mitm]
  *   hostname = ynuf.aliapp.org, tb.ele.me, rsc-api.ele.me
