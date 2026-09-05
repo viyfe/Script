@@ -1,64 +1,33 @@
 /**
  * 饿了么幸运星 —— Quantumult X
+ * 一份脚本两用：重写(抓 CK/令牌) + 定时任务(跑任务领星)。配置和排错见 README_QX.md
  *
- * 一份脚本两用：
- *   1) 重写(MITM) —— 从你自己打开天天免单活动页的真实流量里抓 CK 和风控令牌
- *   2) 定时任务   —— 用抓到的凭证跑任务、领幸运星、推送汇总
- *
- * 为什么要用圈X 跑（不是青龙）：
- *   写接口(pageview/receiveprize)的 riskControl>0，服务端要 bx-umidtoken 这个
- *   风控头。这个令牌由活动页里的 AWSC/WebUMID SDK 向 ynuf.aliapp.org 换取，
- *   青龙 + yyb-go 那条路（小程序登录、无浏览器、无 AWSC）结构上给不出来。
- *   圈X 直接从真实流量里截，顺带出口 IP 也变成手机本机，两个坑一起消。
- *
- * ── 圈X 配置 ────────────────────────────────────────────────────
- *
- *   [rewrite_local]
+ *   [rewrite_local]  ← receiveprize 那条必须在通用那条前面，且是 request-body
  *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *   ^https?:\/\/rsc-api\.ele\.me\/h5\/.*receiveprize url script-request-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *   ^https?:\/\/(sp|rsc-api|alsc-config|metis-er|r|tb|air\.tb)\.ele\.me\/ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *
- *   第 2 条要在第 3 条前面：领奖那一发要读 POST body，必须是 request-body 类型，
- *   request-header 类型下 $request.body 是空的。圈X 按顺序取第一条匹配的规则。
- *
  *   [task_local]
  *   10 9,13,21 * * * eleme_qx.js, tag=饿了么幸运星, enabled=true
  *
- *   [mitm]
+ *   [mitm]  ← hostname 精确匹配不含子域，air.tb.ele.me 要单独写
  *   hostname = ynuf.aliapp.org, sp.ele.me, rsc-api.ele.me, alsc-config.ele.me, metis-er.ele.me, r.ele.me, tb.ele.me, air.tb.ele.me
  *
- *   注意 hostname 在圈X 里是精确匹配，不含子域 —— air.tb.ele.me 必须单独写，
- *   写了 tb.ele.me 不代表覆盖它。抓 CK 的主力是 sp.ele.me(埋点上报)，
- *   它带完整 14 项罐子且 App 一直在发；活动页自己那个 tb.ele.me 只发一次。
+ * 可选参数(task_local 那行的 argument=)：
+ *   elmStarOnly=true   不抽奖，只影响抽奖动作不影响做任务
+ *   elmSignIn          是否签到，默认跟 elmStarOnly 取反
+ *   elmViewWait=true   浏览任务是否真实等待时长
+ *   elmDoChance=false  是否跑任务集 2602(发抽免单机会不发幸运星，且打点推不动阶段)
+ *   elmDebug=false     打印接口原始返回
+ *   elmProbe           只探测：三种画像 × 每个任务集，打任务数矩阵
+ *   elmClient=app      画像 app|h5|bare|mini
+ *   elmDelay=5         多账号间隔秒数
+ *   elmLng/elmLat      经纬度，默认北京
+ *   elmUa/elmTtid/elmUtdid/elmAppVer/elmIosVer/elmDevice/elmIcVersion/elmUmid
+ *                      同青龙版，一般不用填(umid 由重写自动抓)
  *
- * ── 首次使用 ────────────────────────────────────────────────────
- *
- *   开 MITM 和重写后，用饿了么 App 打开一次「天天免单」活动页，
- *   脚本会弹「已抓到凭证」。之后每天按 task_local 的点自动跑。
- *   令牌 SDK 侧缓存 5 小时，过期就再打开活动页一次即可。
- *
- *   没反应就去圈X 日志里搜 "[重写]" —— 脚本每次被调起都会无条件打一行，
- *   一行都没有 = 规则没匹配上或脚本没加载，跟脚本逻辑无关。
- *
- * ── 可选参数（写在 task_local 那行的 argument= 里）───────────────
- *
- *   argument=elmStarOnly=true&elmViewWait=true&elmDebug=false
- *
- *   elmStarOnly  不抽奖(默认 true)；只影响抽奖动作，不影响做任务
- *   elmSignIn    是否签到(默认跟 elmStarOnly 取反，即默认不签)
- *   elmViewWait  浏览任务是否真实等待时长(默认 true)
- *   elmDebug     打印接口原始返回(默认 false)
- *   elmProbe     只探测: 三种画像 × 每个任务集各查一次，打任务数矩阵
- *   elmClient    客户端画像 app|h5|bare|mini，默认 app
- *   elmDelay     多账号间隔秒数，默认 5
- *   elmLng/elmLat 经纬度，默认北京
- *   其余 elmUa / elmTtid / elmUtdid / elmAppVer / elmIosVer / elmDevice /
- *   elmIcVersion / elmUmid 同青龙版，一般不用填（umid 由重写自动抓）
- *
- * 多账号：手机上 MITM 只抓得到本机登录的号，主路径是单账号。
- *   要多号就把另外的 CK 手填进 $prefs 的 elm_ck_2 / elm_ck_3。
- *
- * P2P(邀请助力)、THIRD(店内点击) 需真人操作，脚本只统计不执行。
+ * 多账号：MITM 只抓得到本机登录的号，其余 CK 手填进 $prefs 的 elm_ck_2 / elm_ck_3。
+ * 邀请助力、店内点击需真人操作，脚本只统计不执行。
  * 业务逻辑与青龙版 eleme_miandan.js 同源，只换了传输层和凭证来源。
  */
 
@@ -78,6 +47,7 @@ const K_EXTRA_CK = ['elm_ck_2', 'elm_ck_3', 'elm_ck_4']; // 多账号手填位
 const K_HITS = 'elm_rw_hits'; // 重写被调起的次数，用来判断"到底有没有触发"
 const K_LAST = 'elm_rw_last'; // 最后一次调起命中的 URL(只留 host+path)
 const K_REAL_CLAIM = 'elm_real_claim'; // App 自己点"领取奖励"发的那一发，用来对账
+const K_UMID_HOSTS = 'elm_umid_hosts'; // 哪些 host 的请求带了 bx-umidtoken(找拦截点用)
 
 // 脚本最后一发领奖的 data / 头，领奖失败时拿它跟 App 真实那发逐字比
 let lastClaimData = null;
@@ -136,6 +106,7 @@ function buildEnv() {
     'elmClient', 'elmProbe', 'elmStarOnly', 'elmSignIn', 'elmUtdid', 'elmUa',
     'elmAppVer', 'elmIosVer', 'elmDevice', 'elmIcVersion', 'elmDelay',
     'elmViewWait', 'elmLng', 'elmLat', 'elmTtid', 'elmUmid', 'elmDebug',
+    'elmDoChance',
   ];
   for (const k of KEYS) {
     const v = arg[k] !== undefined && arg[k] !== '' ? arg[k] : readK(k);
@@ -375,22 +346,9 @@ const ASAC_PRIZE = 'alsc576ky60DWZZL6cFDdd';
 // 投放系统(Aladdin)校验必须的 ttid，缺了 querytask 会报 CLIENT_PARAM_ALADDIN_DEVICEINFO_ERROR
 /**
  * 客户端画像。投放系统(Aladdin)按 ttid 筛客户端，画像不对任务就不下发。
- *
- * 实测 A/B(同一账号、同一任务集 2602):
- *   ttid=201200@eleme_iphone_12.8.7 且不发 x-ele-ua  →  5 个任务，但 pageview 405
- *   ttid=H5@Web_iphone_1.10.20 且发全局头            →  任务列表全空，但不再 405
- *
- * 两次改动同时动了 ttid 和 5 个头，变量没隔开，所以这里做成可切换的画像，
- * 配合 elmProbe 能一次跑清楚到底哪个决定下发。
- *
- *   app  原生 App 画像。ttid 用 App 的，x-ele-ua 用抓包里原生请求的 Rajax 格式
- *        (实测值: Rajax/1 Apple/iPhone10,3 iOS/15.0.1 Eleme/12.8.7 ID/<uuid>;
- *         IsJailbroken/0 userMode/standard)，UA 用 MTOPSDK 那串。
- *   h5   纯 H5 画像。ttid=H5@Web_iphone_<H5版本>，x-ele-ua 按 bundle 的
- *        alsc-h5-xua-middleware 非 ELMC 分支拼，UA 用 Safari。
- *   bare 只发 ttid，不发任何 x-ele-ua/x-utdid/tb_uid —— 复现最早那次能拿到任务的配置。
- *
- * 默认 app: 它是唯一实测下发过任务的画像。
+ * 实测只有 app 画像下发过任务(H5 画像任务列表全空)，所以默认 app。
+ * 早先以为画像也影响 405，后来证明 405 是机房出口 IP，与画像无关。
+ * h5 / bare 两个画像保留给 elmProbe 排查用。
  */
 const CLIENT = (process.env.elmClient || 'app').toLowerCase();
 
@@ -464,6 +422,8 @@ const LAT = process.env.elmLat || '39.90923';
  * 一次真实领奖就能确定 2602 到底发什么。
  */
 const NO_DRAW = process.env.elmStarOnly !== 'false';
+// 是否跳过 2602(天天免单主会场，发抽免单机会)。默认跳，只做幸运星
+const STAR_ONLY_COLS = process.env.elmDoChance !== 'true';
 
 /**
  * 是否签到。默认跟着 elmStarOnly 走：
@@ -527,8 +487,8 @@ function createUuid() {
  * 值来自 AWSC 设备指纹 SDK(//g.alicdn.com/AWSC/AWSC/awsc.js, appName:"eleme")，
  * 缓存在 ele.me 域下名为 xqkp 的 cookie 里。设备指纹离线算不出来。
  *
- * 缺这个头时 pageview 返回 405::行为受限，领奖返回「奖励全部失败」，
- * 而 riskControl:0 的 querytask/homepage/signinfo 不受影响 —— 和实测完全一致。
+ * 手机 IP 下打点(riskControl:1)用兜底串也能过，所以它不是 405 的原因；
+ * 领奖是 riskControl:2，实测报 RISK_USER，真令牌在那一档可能才是必需的。
  *
  * 取值优先级:
  *   1. elmUmid 环境变量(自己抓一次最靠谱)
@@ -1316,7 +1276,7 @@ async function doTasks(c, col, sum) {
               `ret=${((r || {}).ret || []).join(';') || '无'}`
           );
           if (/405|行为受限|受限/.test(msg)) {
-            // 405 基本就是 bx-umidtoken 不被认，riskControl:0 的接口不受影响
+            // 实测 405 主因是机房出口 IP(手机上兜底串 10/10 过)，不是这个头
             if (c.umidSrc === '兜底格式(未验证)')
               log(
                 '      → 兜底令牌没过。请在手机上打开一次天天免单页面抓 bx-umidtoken，' +
@@ -1464,8 +1424,7 @@ async function doDraw(c, sum) {
  * 探测模式。对每个任务集用三种画像各查一次 querytask，只读，不做任务不领奖。
  *
  * 目的是把「任务下发」和「打点风控」这两件事分开定位:
- *   哪个画像能拿到任务  → 决定 elmClient 该设成什么
- *   拿到任务的画像打点是否 405 → 决定还要不要继续搞 bx-umidtoken
+ *   哪个画像能拿到任务 → 决定 elmClient 该设成什么
  */
 async function runProbe(ck, sum) {
   log('  === 探测模式(elmProbe=true)，只读不做任务 ===');
@@ -1645,7 +1604,19 @@ async function runAccount(ck, idx, total) {
 
       });
     }
-    // 所有集子都跑。哪个集子发什么，看领奖时打出来的原始 prizeType，不靠文案猜
+    /**
+     * 2602 是天天免单主会场，发的是抽免单机会，不是幸运星。而且实测它的
+     * pageview 打点全部返回成功、阶段却一直停在 RUNNING —— 三个浏览任务
+     * 白花 45 秒和 6 个请求，一次也没推动过。默认跳过，要跑加 elmDoChance=true。
+     */
+    if (STAR_ONLY_COLS) {
+      const before = cols.length;
+      cols = cols.filter((x) => x.id !== '2602');
+      if (cols.length !== before)
+        log('  已跳过任务集 2602（发抽免单机会不发幸运星，且打点推不动阶段）');
+      log('    要跑它就在 argument 里加 elmDoChance=true');
+    }
+    // 剩下的集子都跑。哪个集子发什么，看领奖时打出来的原始 prizeType，不靠文案猜
     log(`  待跑任务集: ${cols.map((x) => x.id).join(' / ')}`);
     for (const col of cols) {
       await doTasks(c, col, sum);
@@ -1966,6 +1937,17 @@ function captureCk() {
     if (umid !== readK(K_UMID)) log(`从请求头拿到风控令牌，长度 ${String(umid).length}`);
     writeK(K_UMID, umid);
     writeK(K_UMID_TS, Date.now());
+    // 记下是哪个 host 给的。22 次调起一次都没抓到，说明当前拦的这批
+    // 请求根本不带这个头，得靠这个统计换拦截点，而不是继续猜
+    try {
+      const host = String(($request && $request.url) || '')
+        .replace(/^https?:\/\//, '').split('/')[0];
+      const seen = (readK(K_UMID_HOSTS) || '').split(',').filter(Boolean);
+      if (host && seen.indexOf(host) < 0) {
+        seen.push(host);
+        writeK(K_UMID_HOSTS, seen.join(','));
+      }
+    } catch (e) { /* 统计用，失败不影响主流程 */ }
   }
 
   // _m_h5_tk 留一份：业务逻辑本来靠响应的 Set-Cookie 自管，
@@ -2011,14 +1993,10 @@ async function task() {
   }
   if (hits) log(`重写累计被调起 ${hits} 次，最后一次: ${last}`);
 
-  // 令牌状态：写接口(pageview/receiveprize)的 riskControl>0，服务端要这个头。
-  // 没有它读接口照样通、写接口会挨 405::行为受限，所以这里要说清楚。
+  // 令牌状态。打点用兜底串能过，领奖(riskControl:2)报 RISK_USER，所以要说清楚。
   const umid = process.env.elmUmid || '';
   const umidTs = Number(readK(K_UMID_TS) || 0);
   if (!umid) {
-    // 2026-09-05 实测修正: 手机 IP 下 pageview(riskControl:1)带 default_empty 也全过，
-    // 所以 405 的主因是出口 IP，不是这个头。领奖是 riskControl:2，更高一档，
-    // 真令牌在那一步仍可能是必需的 —— 所以还是值得抓，但别再当成 405 的解释。
     log('⚠ 没有风控令牌 bx-umidtoken，将用 default_empty 兜底');
     log('  实测手机 IP 下打点(riskControl:1)兜底串也能过；领奖是 riskControl:2，可能需要真令牌');
     log('  想抓真令牌: 保持 MITM 开着，用 App 打开一次天天免单活动页(页面会调 um.json)');
@@ -2039,6 +2017,30 @@ async function task() {
     if (!nm.includes('xqkp'))
       log('  ⚠ 罐里没有 xqkp —— 该 cookie 由活动页的 AWSC SDK 写入，说明抓到的是普通请求');
   }
+
+  // App 真实领奖请求快照的状态。没抓到时要说清"到底哪一步没做"，
+  // 否则用户点了按钮但规则没生效，看不出区别
+  const rcRaw = readK(K_REAL_CLAIM);
+  if (rcRaw) {
+    let snap = null;
+    try { snap = JSON.parse(rcRaw); } catch (e) { snap = null; }
+    if (snap) {
+      const rh = snap.riskHeaders || {};
+      log(
+        `App 真实领奖快照: 有，抓于 ${Math.round((Date.now() - (snap.ts || 0)) / 60000)} 分钟前`
+      );
+      log(`  App 那发带的风控头: ${Object.keys(rh).map((n) => `${n}=${rh[n]}`).join(' ')}`);
+      log(`  data 字段: ${Object.keys(snap.dataKeys || {}).join(',')}`);
+    }
+  } else {
+    log('App 真实领奖快照: 无 —— 领奖失败时无法逐字对账');
+    log('  抓法: 活动页任务列表里手点一次红色「领取奖励」(MITM 要开着)');
+    log('  前提: [rewrite_local] 里那条 receiveprize 规则必须是 script-request-body');
+    log('        且排在通用 ele.me 那条之前，否则会被通用规则吃掉');
+  }
+  // 令牌到底藏在哪个 host 的请求里 —— 累计统计，用来找正确的拦截点
+  const tHosts = readK(K_UMID_HOSTS);
+  if (tHosts) log(`带 bx-umidtoken 的请求来自: ${tHosts}`);
 
   log(`共读取到 ${cks.length} 个账号，账号间隔 ${DELAY_SEC}s，浏览等待=${VIEW_WAIT}`);
 
