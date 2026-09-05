@@ -14,20 +14,27 @@
  * ── 圈X 配置 ────────────────────────────────────────────────────
  *
  *   [rewrite_local]
- *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
- *   ^https?:\/\/(tb|rsc-api)\.ele\.me\/ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
+ *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body eleme_qx.js
+ *   ^https?:\/\/(sp|rsc-api|alsc-config|metis-er|r|tb|air\.tb)\.ele\.me\/ url script-request-header eleme_qx.js
  *
  *   [task_local]
- *   10 9,13,21 * * * https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js, tag=饿了么幸运星, enabled=true
+ *   10 9,13,21 * * * eleme_qx.js, tag=饿了么幸运星, enabled=true
  *
  *   [mitm]
- *   hostname = ynuf.aliapp.org, tb.ele.me, rsc-api.ele.me
+ *   hostname = ynuf.aliapp.org, sp.ele.me, rsc-api.ele.me, alsc-config.ele.me, metis-er.ele.me, r.ele.me, tb.ele.me, air.tb.ele.me
+ *
+ *   注意 hostname 在圈X 里是精确匹配，不含子域 —— air.tb.ele.me 必须单独写，
+ *   写了 tb.ele.me 不代表覆盖它。抓 CK 的主力是 sp.ele.me(埋点上报)，
+ *   它带完整 14 项罐子且 App 一直在发；活动页自己那个 tb.ele.me 只发一次。
  *
  * ── 首次使用 ────────────────────────────────────────────────────
  *
  *   开 MITM 和重写后，用饿了么 App 打开一次「天天免单」活动页，
  *   脚本会弹「已抓到凭证」。之后每天按 task_local 的点自动跑。
  *   令牌 SDK 侧缓存 5 小时，过期就再打开活动页一次即可。
+ *
+ *   没反应就去圈X 日志里搜 "[重写]" —— 脚本每次被调起都会无条件打一行，
+ *   一行都没有 = 规则没匹配上或脚本没加载，跟脚本逻辑无关。
  *
  * ── 可选参数（写在 task_local 那行的 argument= 里）───────────────
  *
@@ -64,6 +71,8 @@ const K_UMID_TS = 'elm_umid_ts';
 const K_H5TK = 'elm_h5tk'; // _m_h5_tk 兜底
 const K_QX_UA = 'elm_qx_ua'; // 真实 App 的 UA
 const K_EXTRA_CK = ['elm_ck_2', 'elm_ck_3', 'elm_ck_4']; // 多账号手填位
+const K_HITS = 'elm_rw_hits'; // 重写被调起的次数，用来判断"到底有没有触发"
+const K_LAST = 'elm_rw_last'; // 最后一次调起命中的 URL(只留 host+path)
 
 const readK = (k) => {
   try {
@@ -973,6 +982,32 @@ function claimIndex(m) {
   return -1;
 }
 
+/**
+ * 领奖失败时把定位信息打全。领奖是 riskControl:2(全链路最高一档)，
+ * 失败可能是发奖被风控拦、阶段没落库、入参不对 —— 光看服务端那句
+ * 「奖励全部失败」区分不出来，所以入参和原始返回一起落日志。
+ */
+function logClaimCtx(col, p, r) {
+  log(
+    `      → POST receiveprize v1.0 任务集=${col.id}(${col.scene}) asac=${ASAC_PRIZE}`
+  );
+  log(
+    `      → 入参 count=${p.count} sum=${p.sum} ` +
+      `instanceId=${p.instanceId == null ? '未带' : '已带'}`
+  );
+  log(`      → ret=${((r || {}).ret || []).join(';') || '无'}`);
+  const d = (r || {}).data;
+  if (d != null) {
+    let s = '';
+    try {
+      s = JSON.stringify(d);
+    } catch (e) {
+      s = String(d);
+    }
+    log(`      → data=${s.length > 400 ? s.slice(0, 400) + '…(截断)' : s}`);
+  }
+}
+
 // ---------- 接口封装 ----------
 const API = {
   // 全屏主态查询 v2：拿 missionCollectionId / 卡片状态
@@ -1271,16 +1306,38 @@ async function doTasks(c, col, sum) {
       const cur = mlistOf(fresh).find((x) => x.missionDefId === m.missionDefId);
       const target = cur || m;
       const idx = claimIndex(target);
+
+      // 打点后服务端到底记没记 —— 这一行是判断"打点成功"是真是假的唯一依据。
+      // claimable() 要求 status===FINISH，所以 idx>=0 本身就证明阶段已落库。
+      const fStages = target.missionStageDTOS || [];
+      const fDone = fStages.filter(
+        (s) => s.status === STAGE.FINISH || s.rewardStatus === REWARD.SUCCESS
+      ).length;
+      log(
+        `      重查: 状态=${itemStatus(target)} 进度=${fDone}/${fStages.length || 1} ` +
+          `阶段=[${fStages
+            .map((s) => `${s.status || '?'}/${s.rewardStatus || '-'}`)
+            .join(' ')}]`
+      );
+
       if (idx >= 0) {
-        const stage = (target.missionStageDTOS || [])[idx] || {};
+        const stage = fStages[idx] || {};
         const p = {
           missionId: target.missionDefId,
           instanceId: target.id,
           count: stage.stageCount,
           sum: stage.stageSum,
         };
-        const r = await API.receivePrize(c, col, p);
-        const be = bizErr(r);
+        let r = await API.receivePrize(c, col, p);
+        let be = bizErr(r);
+        // 阶段刚落库就领，可能抢在发奖服务前面。失败就等 3s 重试一次(只一次)
+        if (!(isOk(r) && !be)) {
+          log(`      领奖第 1 次失败: ${be || retMsg(r)}，等 3s 重试`);
+          logClaimCtx(col, p, r);
+          await sleep(3000);
+          r = await API.receivePrize(c, col, p);
+          be = bizErr(r);
+        }
         if (isOk(r) && !be) {
           const got = describeRewards(biz(r));
           log(`      领奖成功 ${got.join(' ')}`);
@@ -1294,11 +1351,30 @@ async function doTasks(c, col, sum) {
           got.forEach((g) => sum.gain.push(g));
           if (!sum.taskDone.includes(title)) sum.taskDone.push(title);
         } else {
-          log(`      领奖失败: ${be || retMsg(r)}`);
+          log(`      领奖失败(已重试): ${be || retMsg(r)}`);
+          logClaimCtx(col, p, r);
+          sum.claimFail.push(title);
         }
         await sleep(1000);
       } else if (st === ITEM.CYCLE_FINISH || st === ITEM.FINISH) {
         log('      已完成，无待领奖励');
+      } else {
+        // 之前这里是静默 continue —— 2602 那 3 个"打点成功但没领奖"就是掉这儿了
+        const why = fStages.length
+          ? fStages
+              .map((s, i) => {
+                const sa = s.sourceAction || {};
+                if (s.status !== STAGE.FINISH) return `阶段${i}未完成(${s.status})`;
+                if (s.rewardStatus === REWARD.SUCCESS) return `阶段${i}已领过`;
+                if (sa.actionSubtype === 'NO_REWARD') return `阶段${i}本身无奖励`;
+                if (sa.actionSubSubType === 'REWARD_SEND_AUTO')
+                  return `阶段${i}奖励自动发放`;
+                if (sa.actionSubSubType === 'NOTIFY_REACH_STAGE') return `阶段${i}仅通知`;
+                return `阶段${i}不可领`;
+              })
+              .join('，')
+          : '服务端没返回阶段信息';
+        log(`      无可领阶段: ${why}`);
       }
     } catch (e) {
       log(`      任务异常: ${e.message}`);
@@ -1433,6 +1509,7 @@ async function runAccount(ck, idx, total) {
     skip: [],
     gain: [],
     fail: [],
+    claimFail: [], // 打点成功但领奖失败 —— 和 taskDone 分开，否则汇总会虚报战绩
   };
   const uid = pick(ck, 'unb') || pick(ck, 'USERID') || '';
   sum.name = uid ? `账号${idx}(${uid.slice(0, 4)}***${uid.slice(-3)})` : `账号${idx}`;
@@ -1579,13 +1656,21 @@ function buildSummary(all) {
   lines.push('');
   all.forEach((s) => {
     const parts = [`签到:${s.sign}`];
-    parts.push(`任务:${s.taskDone.length ? s.taskDone.length + '个' : '无'}`);
-    if (s.skip.length) parts.push(`跳过:${s.skip.length}个`);
+    // taskDone 是"动作做成了"(打点通过)，不等于"拿到东西了"。
+    // 之前只报 taskDone，出现过打点 10 个、实收 0 个还显示"任务:10个"的虚报
+    parts.push(`打点:${s.taskDone.length ? s.taskDone.length + '个' : '无'}`);
     const g = mergeGains(s.gain);
-    if (g.length) parts.push(`收获:${g.join('、')}`);
+    parts.push(`收获:${g.length ? g.join('、') : '无'}`);
+    if ((s.claimFail || []).length) parts.push(`领奖失败:${s.claimFail.length}个`);
+    if (s.skip.length) parts.push(`跳过:${s.skip.length}个`);
     lines.push(`${s.name} ${parts.join(' | ')}`);
     if (s.fail.length) lines.push(`  异常: ${[...new Set(s.fail)].join('; ')}`);
   });
+  // 打点全过但一件没领到 —— 指向发奖侧被拦，不是任务没做成，别让用户以为脚本没跑
+  const pinged = all.reduce((n, s) => n + s.taskDone.length, 0);
+  const claimBad = all.reduce((n, s) => n + (s.claimFail || []).length, 0);
+  if (!total.length && pinged && claimBad)
+    lines.push(`\n打点 ${pinged} 个全过，但领奖 ${claimBad} 个全失败 —— 卡在发奖侧`);
   return lines.join('\n');
 }
 
@@ -1649,16 +1734,24 @@ function captureUmid() {
   } catch (e) {
     raw = '';
   }
-  if (!raw) return $done({});
+  // 这是 script-response-body 类型：$done({}) 会被圈X 当成"把响应体替换为空"，
+  // 令牌 SDK 拿到空响应，活动页风控初始化直接挂。所有出口都必须原样回传 body。
+  const pass = () => $done(raw ? { body: raw } : {});
+
+  if (!raw) return pass();
   let tn = '';
   try {
     const j = JSON.parse(raw);
     tn = String(j.tn || '');
   } catch (e) {
-    return $done({});
+    log('[重写] um.json 响应不是 JSON，原样放行');
+    return pass();
   }
   // 只做形状校验，不锁前缀（服务端换前缀不该让脚本瞎）
-  if (tn.length < 40 || /[^A-Za-z0-9_\-+/=]/.test(tn)) return $done({});
+  if (tn.length < 40 || /[^A-Za-z0-9_\-+/=]/.test(tn)) {
+    log(`[重写] um.json 里 tn 形状不对(长度 ${tn.length})，原样放行`);
+    return pass();
+  }
 
   const before = readK(K_UMID);
   writeK(K_UMID, tn);
@@ -1666,8 +1759,10 @@ function captureUmid() {
   if (tn !== before) {
     log(`已更新风控令牌，长度 ${tn.length}`);
     $notify(QX_NAME, '已抓到风控令牌', `bx-umidtoken 长度 ${tn.length}，5 小时内有效`);
+  } else {
+    log(`[重写] 风控令牌没变，长度 ${tn.length}`);
   }
-  return $done({});
+  return pass();
 }
 
 /**
@@ -1680,14 +1775,21 @@ function captureCk() {
   try {
     h = ($request && $request.headers) || {};
   } catch (e) {
+    log('[重写] 取不到请求头，跳过');
     return $done({});
   }
   const incoming = pickHeaderCI(h, 'cookie');
-  if (!incoming) return $done({});
+  if (!incoming) {
+    log('[重写] 该请求没带 Cookie 头，跳过');
+    return $done({});
+  }
 
   const fresh = jarParse(incoming);
   // cookie2 就是 mtop 会话 id（与 App 的 x-sid 同值），没有它这罐存了也没用
-  if (!fresh.has('cookie2')) return $done({});
+  if (!fresh.has('cookie2')) {
+    log(`[重写] Cookie 里没有 cookie2(共 ${fresh.size} 项)，跳过 —— 这条不是登录态请求`);
+    return $done({});
+  }
 
   const old = jarParse(readK(K_CK));
   let jar;
@@ -1735,22 +1837,41 @@ function captureCk() {
 async function task() {
   log('饿了么幸运星 —— 开始运行');
 
+  // 重写到底有没有被调起过 —— 抓不到 CK 时这个数字是第一诊断依据
+  const hits = Number(readK(K_HITS) || 0);
+  const last = readK(K_LAST);
+
   const raw = process.env.elmCookie || '';
   const cks = splitAccounts(raw);
   if (!cks.length) {
     log('还没有 CK，退出');
-    log('  请先开 MITM + 重写，再用饿了么 App 打开一次「天天免单」活动页');
-    $notify(QX_NAME, '还没有 CK', '开启 MITM 和重写后，用 App 打开一次天天免单活动页');
+    if (!hits) {
+      log('  重写一次都没被调起过 —— 问题在配置，不在脚本：');
+      log('    1) 圈X 主界面「MITM」开关是否打开、证书是否已装并信任');
+      log('    2) [mitm] hostname 是否含 sp.ele.me(精确匹配，不含子域)');
+      log('    3) [rewrite_local] 那两行是否 enabled、脚本路径能否取到');
+      log('    4) 圈X「重写」总开关是否打开');
+      $notify(QX_NAME, '重写从未触发', 'MITM/证书/hostname/重写开关，四项挨个检查');
+    } else {
+      log(`  重写已被调起 ${hits} 次，最后一次: ${last}`);
+      log('  说明规则通了但没抓到带 cookie2 的请求 —— 用 App 打开一次「天天免单」活动页');
+      $notify(QX_NAME, '还没有 CK', `重写已触发 ${hits} 次但没抓到登录态，请打开一次活动页`);
+    }
     return;
   }
+  if (hits) log(`重写累计被调起 ${hits} 次，最后一次: ${last}`);
 
   // 令牌状态：写接口(pageview/receiveprize)的 riskControl>0，服务端要这个头。
   // 没有它读接口照样通、写接口会挨 405::行为受限，所以这里要说清楚。
   const umid = process.env.elmUmid || '';
   const umidTs = Number(readK(K_UMID_TS) || 0);
   if (!umid) {
-    log('⚠ 没有风控令牌 bx-umidtoken —— 读接口能通，但打点/领奖大概率 405::行为受限');
-    log('  打开一次天天免单活动页，重写会自动抓到');
+    // 2026-09-05 实测修正: 手机 IP 下 pageview(riskControl:1)带 default_empty 也全过，
+    // 所以 405 的主因是出口 IP，不是这个头。领奖是 riskControl:2，更高一档，
+    // 真令牌在那一步仍可能是必需的 —— 所以还是值得抓，但别再当成 405 的解释。
+    log('⚠ 没有风控令牌 bx-umidtoken，将用 default_empty 兜底');
+    log('  实测手机 IP 下打点(riskControl:1)兜底串也能过；领奖是 riskControl:2，可能需要真令牌');
+    log('  想抓真令牌: 保持 MITM 开着，用 App 打开一次天天免单活动页(页面会调 um.json)');
   } else {
     const ageMin = umidTs ? Math.round((Date.now() - umidTs) / 60000) : -1;
     if (ageMin < 0) log(`风控令牌已就位，长度 ${umid.length}（来源: 手填/argument）`);
@@ -1759,11 +1880,15 @@ async function task() {
     else log(`风控令牌已就位，长度 ${umid.length}，抓到于 ${ageMin} 分钟前`);
   }
   const ckTs = Number(readK(K_CK_TS) || 0);
-  if (ckTs)
-    log(
-      `CK 共 ${jarNames(readK(K_CK)).length} 项，抓到于 ` +
-        `${Math.round((Date.now() - ckTs) / 60000)} 分钟前`
-    );
+  if (ckTs) {
+    const nm = jarNames(readK(K_CK));
+    log(`CK 共 ${nm.length} 项，抓到于 ${Math.round((Date.now() - ckTs) / 60000)} 分钟前`);
+    // 只打项名不打值。xqkp 是 AWSC SDK 缓存令牌的地方，它在不在直接决定
+    // umidToken() 会走"CK 里的 xqkp"还是掉到 default_empty 兜底
+    log(`  CK 项: ${nm.join(',')}`);
+    if (!nm.includes('xqkp'))
+      log('  ⚠ 罐里没有 xqkp —— 该 cookie 由活动页的 AWSC SDK 写入，说明抓到的是普通请求');
+  }
 
   log(`共读取到 ${cks.length} 个账号，账号间隔 ${DELAY_SEC}s，浏览等待=${VIEW_WAIT}`);
 
@@ -1787,9 +1912,28 @@ async function task() {
 // 定时任务场景两个都没有。
 const IS_REWRITE = typeof $request !== 'undefined' && $request;
 if (IS_REWRITE) {
+  const url = String(($request && $request.url) || '');
+  const short = url.replace(/^https?:\/\//, '').split('?')[0].slice(0, 70);
+  const hits = Number(readK(K_HITS) || 0) + 1;
+  writeK(K_HITS, hits);
+  writeK(K_LAST, short);
+  // 无条件打一行 —— 用户报"没反应"时，这一行的有无直接分开
+  // "规则没匹配/脚本没加载" 和 "匹配了但没抓到东西" 两种情况
+  log(`[重写] 第 ${hits} 次调起: ${short}`);
+
+  const isUmid = /ynuf\.aliapp\.org/.test(url);
   const hasResp = typeof $response !== 'undefined' && $response;
-  if (hasResp || /ynuf\.aliapp\.org/.test(String($request.url || ''))) captureUmid();
-  else captureCk();
+  // 只有确实拿到 $response 才走 umid 分支。ynuf 规则若被误配成
+  // request-header 类型，这里 hasResp=false，走 captureUmid 会拿空 body
+  // 去 $done，等于把响应清空 —— 宁可什么都不做。
+  if (isUmid && !hasResp) {
+    log('[重写] ynuf 命中但没有 $response —— 规则类型应为 script-response-body，请检查配置');
+    $done({});
+  } else if (hasResp) {
+    captureUmid();
+  } else {
+    captureCk();
+  }
 } else {
   task()
     .catch((e) => {
