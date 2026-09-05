@@ -8,7 +8,7 @@
  *   ^https?:\/\/(sp|rsc-api|alsc-config|metis-er|r|tb|air\.tb)\.ele\.me\/ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *
  *   [task_local]
- *   10 9,13,21 * * * eleme_qx.js, tag=饿了么幸运星, enabled=true
+ *   10 9,13,21 * * * https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js, tag=饿了么幸运星, enabled=true
  *
  *   [mitm]  ← hostname 精确匹配不含子域，air.tb.ele.me 要单独写
  *   hostname = ynuf.aliapp.org, sp.ele.me, rsc-api.ele.me, alsc-config.ele.me, metis-er.ele.me, r.ele.me, tb.ele.me, air.tb.ele.me
@@ -48,6 +48,7 @@ const K_HITS = 'elm_rw_hits'; // 重写被调起的次数，用来判断"到底�
 const K_LAST = 'elm_rw_last'; // 最后一次调起命中的 URL(只留 host+path)
 const K_REAL_CLAIM = 'elm_real_claim'; // App 自己点"领取奖励"发的那一发，用来对账
 const K_UMID_HOSTS = 'elm_umid_hosts'; // 哪些 host 的请求带了 bx-umidtoken(找拦截点用)
+const K_CLAIM_SEEN = 'elm_claim_seen'; // 见过的领奖类 URL(host + api)，找 App 走哪条路用
 
 // 脚本最后一发领奖的 data / 头，领奖失败时拿它跟 App 真实那发逐字比
 let lastClaimData = null;
@@ -486,6 +487,14 @@ function createUuid() {
  * 它在 isCommonH5(即非饿了么/淘宝 App 的普通浏览器)时给每个请求挂 bx-umidtoken，
  * 值来自 AWSC 设备指纹 SDK(//g.alicdn.com/AWSC/AWSC/awsc.js, appName:"eleme")，
  * 缓存在 ele.me 域下名为 xqkp 的 cookie 里。设备指纹离线算不出来。
+ *
+ * 全包实测(2026-08-28 那份 332 条 HAR)：没有任何一发请求带 bx-umidtoken。
+ * App 原生请求走的是 SecurityGuard 那套 —— x-sgext / x-sign / x-mini-wua
+ * (rsc-api.ele.me 上三者齐全)，压根不发这个头。包里仅两发 um.json，且都紧挨着
+ * H5 页面(log.mmstat.com/eg.js、render.alipay.com)，即只有活动页 WebView 会调它。
+ * ⇒ 拿真令牌只有一条路：MITM 开着用 App 打开活动页，让页面自己调 um.json。
+ *   顺带排除 cdn.ynuf.aliapp.org 那 12 发 —— 响应是 {ck,ec,dt}，没有 tn，不是令牌源，
+ *   不用往 hostname 里加它。
  *
  * 手机 IP 下打点(riskControl:1)用兜底串也能过，所以它不是 405 的原因；
  * 领奖是 riskControl:2，实测报 RISK_USER，真令牌在那一档可能才是必需的。
@@ -1353,6 +1362,7 @@ async function doTasks(c, col, sum) {
         await sleep(1000);
       } else if (st === ITEM.CYCLE_FINISH || st === ITEM.FINISH) {
         log('      已完成，无待领奖励');
+        sum.preClaimed += 1;
       } else {
         // 之前这里是静默 continue —— 2602 那 3 个"打点成功但没领奖"就是掉这儿了
         const why = fStages.length
@@ -1505,6 +1515,7 @@ async function runAccount(ck, idx, total) {
     fail: [],
     claimFail: [], // 打点成功但领奖失败 —— 和 taskDone 分开，否则汇总会虚报战绩
     riskHit: false, // 发奖侧点名 RISK_USER，推送里要说明是账号被标记不是脚本没跑
+    preClaimed: 0, // 跑之前就已 SUCCESS 的任务数(手点领过的)。区分"没得领"和"领不动"
   };
   const uid = pick(ck, 'unb') || pick(ck, 'USERID') || '';
   sum.name = uid ? `账号${idx}(${uid.slice(0, 4)}***${uid.slice(-3)})` : `账号${idx}`;
@@ -1681,6 +1692,11 @@ function buildSummary(all) {
   // 服务端自己点名 RISK_USER 时说清楚归因，免得以为是脚本或 CK 的问题
   if (all.some((s) => s.riskHit))
     lines.push('发奖侧点名账号风控(RISK_USER)，换头/换参数都不改结果');
+  // 没收获但也没失败、且一堆任务跑前就已领过 —— 是"没得领"不是"领不动"，
+  // 这两种情况汇总看起来一模一样，不说清会以为脚本又挂了
+  const pre = all.reduce((n, s) => n + (s.preClaimed || 0), 0);
+  if (!total.length && !claimBad && pre)
+    lines.push(`\n${pre} 个任务跑之前就已领过，脚本无事可做(不是领取失败)`);
   return lines.join('\n');
 }
 
@@ -1937,8 +1953,8 @@ function captureCk() {
     if (umid !== readK(K_UMID)) log(`从请求头拿到风控令牌，长度 ${String(umid).length}`);
     writeK(K_UMID, umid);
     writeK(K_UMID_TS, Date.now());
-    // 记下是哪个 host 给的。22 次调起一次都没抓到，说明当前拦的这批
-    // 请求根本不带这个头，得靠这个统计换拦截点，而不是继续猜
+    // 记下是哪个 host 给的。HAR 全包 332 条一发都没带，所以这个统计大概率一直是空的；
+    // 真出现了才说明找到了新的令牌来源，那时候按 host 加规则，别再猜
     try {
       const host = String(($request && $request.url) || '')
         .replace(/^https?:\/\//, '').split('/')[0];
@@ -2000,6 +2016,7 @@ async function task() {
     log('⚠ 没有风控令牌 bx-umidtoken，将用 default_empty 兜底');
     log('  实测手机 IP 下打点(riskControl:1)兜底串也能过；领奖是 riskControl:2，可能需要真令牌');
     log('  想抓真令牌: 保持 MITM 开着，用 App 打开一次天天免单活动页(页面会调 um.json)');
+    log('  必须是活动页那个 WebView —— App 原生页面不触发 um.json，光开 App 没用');
   } else {
     const ageMin = umidTs ? Math.round((Date.now() - umidTs) / 60000) : -1;
     if (ageMin < 0) log(`风控令牌已就位，长度 ${umid.length}（来源: 手填/argument）`);
@@ -2034,13 +2051,25 @@ async function task() {
     }
   } else {
     log('App 真实领奖快照: 无 —— 领奖失败时无法逐字对账');
-    log('  抓法: 活动页任务列表里手点一次红色「领取奖励」(MITM 要开着)');
-    log('  前提: [rewrite_local] 里那条 receiveprize 规则必须是 script-request-body');
-    log('        且排在通用 ele.me 那条之前，否则会被通用规则吃掉');
+    const seen = readK(K_CLAIM_SEEN);
+    if (seen) {
+      // 见过领奖类请求却没存下快照 = 规则类型不对(request-header 读不到 body)
+      log('  但见过这些领奖类请求(host|api)：');
+      seen.split('\n').filter(Boolean).forEach((x) => log(`    ${x}`));
+      log('  ⇒ 说明拦到了但没存下来，检查那条规则是不是 script-request-body');
+    } else {
+      log('  抓法: 活动页任务列表里手点一次红色「领取奖励」(MITM 要开着)');
+      log('  前提: [rewrite_local] 里那条 receiveprize 规则必须是 script-request-body');
+      log('        且排在通用 ele.me 那条之前，否则会被通用规则吃掉');
+      log('  已手点过还是没有 = 那一发没经过被拦的 host，走的可能是原生通道');
+    }
   }
-  // 令牌到底藏在哪个 host 的请求里 —— 累计统计，用来找正确的拦截点
+  // 令牌到底藏在哪个 host 的请求里。HAR 全包 332 条零命中，所以"没有"是预期结果，
+  // 得把这个结论打出来，否则每次跑都要怀疑一遍是不是规则没配好
   const tHosts = readK(K_UMID_HOSTS);
   if (tHosts) log(`带 bx-umidtoken 的请求来自: ${tHosts}`);
+  else
+    log('没有任何被拦请求带 bx-umidtoken —— 这是预期的：App 原生走 x-sgext 签名，只有活动页 WebView 的 um.json 产令牌');
 
   log(`共读取到 ${cks.length} 个账号，账号间隔 ${DELAY_SEC}s，浏览等待=${VIEW_WAIT}`);
 
@@ -2072,6 +2101,25 @@ if (IS_REWRITE) {
   // 无条件打一行 —— 用户报"没反应"时，这一行的有无直接分开
   // "规则没匹配/脚本没加载" 和 "匹配了但没抓到东西" 两种情况
   log(`[重写] 第 ${hits} 次调起: ${short}`);
+
+  /**
+   * 领奖类请求的宽口径观测。用户手点了领奖、快照却是空的，说明那一发没经过
+   * 任何被拦的 host。这里把凡是像领奖的 URL 都记下 host+api，用来定位 App
+   * 到底走哪条路 —— 比继续猜 hostname 该加谁快。
+   */
+  if (/receive|prize|reward|receiveprize/i.test(url)) {
+    try {
+      const host = url.replace(/^https?:\/\//, '').split('/')[0];
+      const api = (/[?&]api=([^&]*)/.exec(url) || [])[1] || short;
+      const tag = `${host}|${api}`;
+      const seen = (readK(K_CLAIM_SEEN) || '').split('\n').filter(Boolean);
+      if (seen.indexOf(tag) < 0) {
+        seen.push(tag);
+        writeK(K_CLAIM_SEEN, seen.slice(-10).join('\n'));
+      }
+      log(`[重写] ★ 领奖类请求: ${tag}`);
+    } catch (e) { /* 观测用，失败不影响主流程 */ }
+  }
 
   const isUmid = /ynuf\.aliapp\.org/.test(url);
   const hasResp = typeof $response !== 'undefined' && $response;
