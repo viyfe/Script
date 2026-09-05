@@ -14,9 +14,9 @@
  * ── 圈X 配置 ────────────────────────────────────────────────────
  *
  *   [rewrite_local]
- *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body eleme_qx.js
- *   ^https?:\/\/rsc-api\.ele\.me\/h5\/.*receiveprize url script-request-body eleme_qx.js
- *   ^https?:\/\/(sp|rsc-api|alsc-config|metis-er|r|tb|air\.tb)\.ele\.me\/ url script-request-header eleme_qx.js
+ *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
+ *   ^https?:\/\/rsc-api\.ele\.me\/h5\/.*receiveprize url script-request-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
+ *   ^https?:\/\/(sp|rsc-api|alsc-config|metis-er|r|tb|air\.tb)\.ele\.me\/ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *
  *   第 2 条要在第 3 条前面：领奖那一发要读 POST body，必须是 request-body 类型，
  *   request-header 类型下 $request.body 是空的。圈X 按顺序取第一条匹配的规则。
