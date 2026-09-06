@@ -2,10 +2,12 @@
  * 饿了么幸运星 —— Quantumult X
  * 一份脚本两用：重写(抓 CK/令牌) + 定时任务(跑任务领星)。配置和排错见 README_QX.md
  *
- *   [rewrite_local]  ← receiveprize 那条必须在通用那条前面，且是 request-body
+ *   [rewrite_local]  ← 顺序照抄，圈X 取第一条匹配的
  *   ^https?:\/\/ynuf\.aliapp\.org\/service\/um\.json url script-response-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
- *   ^https?:\/\/rsc-api\.ele\.me\/h5\/.*receiveprize url script-request-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *   ^https?:\/\/(sp|rsc-api|alsc-config|metis-er|r|tb|air\.tb)\.ele\.me\/ url script-request-header https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
+ *   ← 领奖快照走上面通用那条就够(只对账头)。想连 data 一起对账再加下面这条，
+ *     且必须放到通用那条前面：
+ *   ^https?:\/\/rsc-api\.ele\.me\/h5\/.*receiveprize url script-request-body https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js
  *
  *   [task_local]
  *   10 9,13,21 * * * https://raw.githubusercontent.com/viyfe/Script/refs/heads/main/eleme.js, tag=饿了么幸运星, enabled=true
@@ -1820,19 +1822,28 @@ function captureRealClaim(url) {
   const mb = /(?:^|&)data=([^&]*)/.exec(body);
   if (mb) { try { dataRaw = decodeURIComponent(mb[1]); } catch (e) { dataRaw = mb[1]; } }
 
+  // 规则是 script-request-header 时圈X 不给 body，此时只能对账头。
+  // 头恰恰是最要紧的那半（真令牌 vs default_empty），所以不当失败处理，
+  // 降级记录并标注，避免整件事卡在"规则类型必须配对"上。
+  const bodyless = !body;
+
   const shape = {};
-  try {
-    const j = JSON.parse(dataRaw || '{}');
-    Object.keys(j).forEach((k) => {
-      const v = j[k];
-      // 安全白名单里的字段留真值（都是任务 id / 场景名这类非私密量），
-      // 其余只留"有没有 + 多长"，够对账又不落盘敏感值
-      shape[k] = SAFE.indexOf(k) >= 0 && !SENSITIVE.test(k)
-        ? v
-        : `<${v == null ? 'null' : typeof v}:${String(v).length}>`;
-    });
-  } catch (e) {
-    shape._parseError = `data 不是 JSON，长度 ${dataRaw.length}`;
+  if (bodyless) {
+    shape._noBody = '规则是 request-header，拿不到 data；本次只对账请求头';
+  } else {
+    try {
+      const j = JSON.parse(dataRaw || '{}');
+      Object.keys(j).forEach((k) => {
+        const v = j[k];
+        // 安全白名单里的字段留真值（都是任务 id / 场景名这类非私密量），
+        // 其余只留"有没有 + 多长"，够对账又不落盘敏感值
+        shape[k] = SAFE.indexOf(k) >= 0 && !SENSITIVE.test(k)
+          ? v
+          : `<${v == null ? 'null' : typeof v}:${String(v).length}>`;
+      });
+    } catch (e) {
+      shape._parseError = `data 不是 JSON，长度 ${dataRaw.length}`;
+    }
   }
 
   // 头只记名字 + 长度，另外单独标注几个关键风控头到底有没有
@@ -1849,6 +1860,7 @@ function captureRealClaim(url) {
     api: (/[?&]api=([^&]*)/.exec(url) || [])[1] || '',
     v: (/[?&]v=([^&]*)/.exec(url) || [])[1] || '',
     hasTtidInQuery: /[?&]ttid=/.test(url),
+    bodyless: bodyless, // true 表示这份快照只有头，没有 data
     dataKeys: shape,
     headerNames: hnames,
     riskHeaders: marks,
@@ -1858,10 +1870,12 @@ function captureRealClaim(url) {
   writeK(K_REAL_CLAIM, s);
 
   log('[重写] ★ 抓到 App 真实领奖请求，已存快照。下次跑定时任务会打出对账结果');
-  log(`[重写]   api=${snap.api} v=${snap.v}`);
+  log(`[重写]   api=${snap.api} v=${snap.v}${bodyless ? ' (只有头，无 data)' : ''}`);
   log(`[重写]   风控头: ${Object.keys(marks).map((n) => `${n}=${marks[n]}`).join(' ')}`);
   log(`[重写]   data 字段: ${Object.keys(shape).join(',')}`);
-  return $done({});
+  // script-request-body 下 $done({}) 会被圈X 当成"把请求体替换为空"，
+  // App 自己那发领奖就被我们改坏了。必须原样还回去。
+  return $done(body ? { body: body } : {});
 }
 
 /**
@@ -2121,8 +2135,9 @@ if (IS_REWRITE) {
 
   const isUmid = /ynuf\.aliapp\.org/.test(url);
   const hasResp = typeof $response !== 'undefined' && $response;
-  // App 自己点"领取奖励"那一发优先处理 —— 它同时也带完整 CK，
-  // 所以抓完快照后继续走 captureCk，两件事一次做完
+  // App 自己点"领取奖励"那一发。不论命中的是专用的 request-body 规则还是
+  // 通用的 request-header 规则都要抓 —— header 类型下拿不到 data，但拿得到
+  // 头，而真令牌 vs default_empty 这个差异本身就在头里。
   const isClaim = /receiveprize/i.test(url);
   // 只有确实拿到 $response 才走 umid 分支。ynuf 规则若被误配成
   // request-header 类型，这里 hasResp=false，走 captureUmid 会拿空 body
