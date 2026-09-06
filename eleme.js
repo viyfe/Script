@@ -15,7 +15,7 @@
  *
  * 可选参数(task_local 那行的 argument=)：
  *   elmStarOnly=true   不抽奖，只影响抽奖动作不影响做任务
- *   elmSignIn          是否签到，默认跟 elmStarOnly 取反
+ *   elmSignIn=true     是否签到，默认 true
  *   elmViewWait=true   浏览任务是否真实等待时长
  *   elmDoChance=false  是否跑任务集 2602(发抽免单机会不发幸运星，且打点推不动阶段)
  *   elmDebug=false     打印接口原始返回
@@ -427,15 +427,13 @@ const NO_DRAW = process.env.elmStarOnly !== 'false';
 const STAR_ONLY_COLS = process.env.elmDoChance !== 'true';
 
 /**
- * 是否签到。默认跟着 elmStarOnly 走：
- * 实测这两个账号的签到 stageAward 全是 MD_CHANCE(抽奖机会)，只要幸运星的话
- * 签它没意义，而且它失败还会把账号标成异常。想单独控制就设 elmSignIn。
- * 别的账号签到可能发幸运星，所以留了开关而不是写死。
+ * 是否签到。默认 true（做所有任务），不想签就设 elmSignIn=false。
+ * 部分账号签到 stageAward 全是 MD_CHANCE(抽奖机会)，那种号可以关掉省一次请求。
  */
 const SIGN_IN =
   process.env.elmSignIn != null
     ? process.env.elmSignIn !== 'false'
-    : !NO_DRAW;
+    : true;
 
 const DELAY_SEC = num(process.env.elmDelay, 5);
 const VIEW_WAIT = process.env.elmViewWait !== 'false';
